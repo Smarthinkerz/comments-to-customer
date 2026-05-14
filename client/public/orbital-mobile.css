@@ -1,0 +1,200 @@
+/**
+ * MOBILE RESPONSIVE STYLES
+ * Comprehensive mobile optimization for orbital.html
+ */
+
+/* ===== MOBILE BREAKPOINTS ===== */
+
+/* Tablet and below (1024px) */
+@media (max-width: 1024px) {
+  /* Hero section */
+  .hero-title {
+    font-size: 40px;
+  }
+  
+  .hero-subtitle {
+    font-size: 16px;
+  }
+  
+  /* Orbital system - reduce size */
+  .orbital-system {
+    transform: scale(0.8);
+  }
+}
+
+/* Mobile (768px and below) */
+@media (max-width: 768px) {
+  /* ===== HEADER MOBILE ===== */
+  .header {
+    padding: 12px 0;
+  }
+  
+  .header-container {
+    padding: 0 16px;
+  }
+  
+  /* Logo text - show abbreviated version */
+  .logo-text span {
+    display: none;
+  }
+  
+  /* Navigation - stack vertically if shown */
+  .nav {
+    flex-direction: column;
+    align-items: flex-end;
+  }
+  
+  /* ===== HERO MOBILE ===== */
+  .hero {
+    min-height: auto;
+    padding: calc(var(--header-height) + 40px) 0 60px;
+  }
+  
+  .hero-container {
+    flex-direction: column;
+    text-align: center;
+  }
+  
+  .hero-content {
+    max-width: 100%;
+    padding: 0 20px;
+  }
+  
+  .hero-title {
+    font-size: 32px;
+    margin-bottom: 20px;
+  }
+  
+  .hero-subtitle {
+    font-size: 15px;
+    margin-bottom: 30px;
+  }
+  
+  .hero-cta {
+    flex-direction: column;
+    gap: 16px;
+    align-items: stretch;
+  }
+  
+  .cta-group {
+    width: 100%;
+  }
+  
+  .btn-primary,
+  .btn-secondary {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  /* Hide or scale down orbital system on mobile */
+  .orbital-system {
+    display: none;
+  }
+  
+  /* ===== FEATURES MOBILE ===== */
+  .features-overview {
+    padding: 60px 0;
+  }
+  
+  .section-title {
+    font-size: 28px;
+    margin-bottom: 24px;
+  }
+  
+  .section-subtitle {
+    font-size: 16px;
+  }
+  
+  .features-grid {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+  
+  .feature-card {
+    padding: 28px 20px;
+  }
+  
+  /* ===== ALL FEATURES MOBILE ===== */
+  .feature-category-nav {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    justify-content: flex-start;
+  }
+  
+  .feature-category-nav::-webkit-scrollbar {
+    display: none;
+  }
+  
+  .category-tab {
+    font-size: 13px;
+    padding: 10px 16px;
+    white-space: nowrap;
+  }
+  
+  .all-features-grid {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+  
+  .feature-detail-card {
+    padding: 24px 20px;
+  }
+  
+  /* ===== DEMO SECTIONS MOBILE ===== */
+  .interactive-demo-section {
+    padding: 60px 0;
+  }
+  
+  .demo-split-layout {
+    flex-direction: column;
+    gap: 40px;
+  }
+  
+  .demo-media-column,
+  .demo-interactive-column {
+    width: 100%;
+  }
+  
+  /* ===== FLOATING ICONS - REDUCE ON MOBILE ===== */
+  .floating-social-icon {
+    width: 40px;
+    height: 40px;
+    font-size: 20px;
+  }
+  
+  /* ===== GENERAL MOBILE UTILITIES ===== */
+  .trust-bar {
+    padding: 16px 0;
+  }
+  
+  .trust-text {
+    font-size: 14px;
+  }
+}
+
+/* Small mobile (480px and below) */
+@media (max-width: 480px) {
+  .hero-title {
+    font-size: 28px;
+  }
+  
+  .section-title {
+    font-size: 24px;
+  }
+  
+  .btn-header-login,
+  .btn-header-signup {
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+  
+  .header-actions {
+    gap: 6px;
+  }
+  
+  /* Stack buttons vertically on very small screens */
+  .logo-text {
+    font-size: 14px;
+  }
+}
