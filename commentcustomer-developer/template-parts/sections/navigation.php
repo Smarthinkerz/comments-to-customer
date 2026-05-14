@@ -1,5 +1,10 @@
 <header class="cc-header" id="cc-header">
     <div class="cc-header-container">
+        <a href="https://smarhinkerz.com" class="cc-hub-link" data-testid="link-smarthinkerz-hub" aria-label="Back to SmarThinkerz Hub">
+            <i class="fas fa-arrow-left"></i>
+            <span class="cc-hub-link-full">Back to SmarThinkerz Hub</span>
+            <span class="cc-hub-link-short">Hub</span>
+        </a>
         <div class="cc-logo">
             <div class="logo-icon">
                 <i class="fas fa-robot"></i>
@@ -91,10 +96,6 @@
             </ul>
 
             <div class="cc-nav-actions">
-                <a href="https://www.smarthinkerz.com" target="_blank" rel="noopener" class="btn-hub" data-testid="link-smarthinkerz-hub" title="Back to SmarThinkerz Hub">
-                    <i class="fas fa-arrow-left"></i>
-                    <span>Back to SmarThinkerz Hub</span>
-                </a>
                 <button class="btn-login" id="openUserLogin" data-testid="btn-user-login" data-i18n="nav.login">Login</button>
 
                 <div class="lang-toggle" aria-label="Language toggle">
