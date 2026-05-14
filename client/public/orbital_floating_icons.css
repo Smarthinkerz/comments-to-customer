@@ -1,0 +1,406 @@
+/**
+ * FLOATING SOCIAL ICONS - Random Movement Throughout Page
+ * Icons float across the entire viewport with random paths
+ * Includes: Facebook, X, Instagram, WhatsApp, LinkedIn, YouTube, Telegram
+ */
+
+/* Container for floating icons */
+.floating-icons-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 999;
+  overflow: hidden;
+}
+
+/* Individual floating icon */
+.floating-social-icon {
+  position: absolute;
+  width: 60px;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, rgba(189, 8, 29, 0.4), rgba(0, 228, 255, 0.4));
+  backdrop-filter: blur(10px);
+  border: 2px solid rgba(0, 228, 255, 0.6);
+  border-radius: 14px;
+  color: #00E4FF;
+  font-size: 28px;
+  box-shadow: 
+    0 4px 20px rgba(0, 228, 255, 0.5),
+    0 0 40px rgba(0, 228, 255, 0.3),
+    inset 0 0 20px rgba(255, 255, 255, 0.1);
+  pointer-events: auto;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  animation: floatAcrossPage var(--duration) linear infinite;
+  animation-delay: var(--delay);
+  opacity: 0.95;
+}
+
+.floating-social-icon:hover {
+  transform: scale(1.3) rotate(10deg) !important;
+  background: linear-gradient(135deg, rgba(189, 8, 29, 0.6), rgba(0, 228, 255, 0.6));
+  box-shadow: 
+    0 8px 35px rgba(0, 228, 255, 0.8),
+    0 0 60px rgba(0, 228, 255, 0.5);
+  animation-play-state: paused;
+  opacity: 1;
+}
+
+/* Icon color variations */
+.floating-social-icon.instagram {
+  background: linear-gradient(135deg, rgba(225, 48, 108, 0.5), rgba(253, 29, 29, 0.4), rgba(245, 96, 64, 0.4));
+  border-color: rgba(225, 48, 108, 0.7);
+  color: #FF6FB5;
+  box-shadow: 
+    0 4px 25px rgba(225, 48, 108, 0.6),
+    0 0 45px rgba(225, 48, 108, 0.4);
+}
+
+.floating-social-icon.facebook {
+  background: linear-gradient(135deg, rgba(24, 119, 242, 0.5), rgba(0, 102, 255, 0.4));
+  border-color: rgba(24, 119, 242, 0.7);
+  color: #66B3FF;
+  box-shadow: 
+    0 4px 25px rgba(24, 119, 242, 0.6),
+    0 0 45px rgba(24, 119, 242, 0.4);
+}
+
+.floating-social-icon.twitter {
+  background: linear-gradient(135deg, rgba(0, 0, 0, 0.5), rgba(29, 155, 240, 0.4));
+  border-color: rgba(29, 155, 240, 0.7);
+  color: #66CCFF;
+  box-shadow: 
+    0 4px 25px rgba(29, 155, 240, 0.6),
+    0 0 45px rgba(29, 155, 240, 0.4);
+}
+
+.floating-social-icon.whatsapp {
+  background: linear-gradient(135deg, rgba(37, 211, 102, 0.5), rgba(18, 140, 126, 0.4));
+  border-color: rgba(37, 211, 102, 0.7);
+  color: #6FFF9F;
+  box-shadow: 
+    0 4px 25px rgba(37, 211, 102, 0.6),
+    0 0 45px rgba(37, 211, 102, 0.4);
+}
+
+.floating-social-icon.linkedin {
+  background: linear-gradient(135deg, rgba(0, 119, 181, 0.5), rgba(0, 102, 153, 0.4));
+  border-color: rgba(0, 119, 181, 0.7);
+  color: #66B8E5;
+  box-shadow: 
+    0 4px 25px rgba(0, 119, 181, 0.6),
+    0 0 45px rgba(0, 119, 181, 0.4);
+}
+
+.floating-social-icon.youtube {
+  background: linear-gradient(135deg, rgba(255, 0, 0, 0.5), rgba(204, 0, 0, 0.4));
+  border-color: rgba(255, 0, 0, 0.7);
+  color: #FF6666;
+  box-shadow: 
+    0 4px 25px rgba(255, 0, 0, 0.6),
+    0 0 45px rgba(255, 0, 0, 0.4);
+}
+
+.floating-social-icon.telegram {
+  background: linear-gradient(135deg, rgba(0, 136, 204, 0.5), rgba(0, 113, 179, 0.4));
+  border-color: rgba(0, 136, 204, 0.7);
+  color: #66CCFF;
+  box-shadow: 
+    0 4px 25px rgba(0, 136, 204, 0.6),
+    0 0 45px rgba(0, 136, 204, 0.4);
+}
+
+/* Random floating paths - each icon gets unique coordinates */
+@keyframes floatPath1 {
+  0% { transform: translate(5vw, 10vh) rotate(0deg); }
+  25% { transform: translate(80vw, 30vh) rotate(90deg); }
+  50% { transform: translate(60vw, 70vh) rotate(180deg); }
+  75% { transform: translate(20vw, 50vh) rotate(270deg); }
+  100% { transform: translate(5vw, 10vh) rotate(360deg); }
+}
+
+@keyframes floatPath2 {
+  0% { transform: translate(90vw, 20vh) rotate(0deg); }
+  25% { transform: translate(15vw, 60vh) rotate(-90deg); }
+  50% { transform: translate(70vw, 80vh) rotate(-180deg); }
+  75% { transform: translate(85vw, 40vh) rotate(-270deg); }
+  100% { transform: translate(90vw, 20vh) rotate(-360deg); }
+}
+
+@keyframes floatPath3 {
+  0% { transform: translate(50vw, 15vh) rotate(0deg); }
+  20% { transform: translate(10vw, 45vh) rotate(72deg); }
+  40% { transform: translate(85vw, 55vh) rotate(144deg); }
+  60% { transform: translate(40vw, 85vh) rotate(216deg); }
+  80% { transform: translate(75vw, 25vh) rotate(288deg); }
+  100% { transform: translate(50vw, 15vh) rotate(360deg); }
+}
+
+@keyframes floatPath4 {
+  0% { transform: translate(30vw, 75vh) rotate(0deg); }
+  33% { transform: translate(80vw, 15vh) rotate(120deg); }
+  66% { transform: translate(15vw, 35vh) rotate(240deg); }
+  100% { transform: translate(30vw, 75vh) rotate(360deg); }
+}
+
+@keyframes floatPath5 {
+  0% { transform: translate(70vw, 50vh) rotate(0deg); }
+  25% { transform: translate(25vw, 20vh) rotate(-90deg); }
+  50% { transform: translate(60vw, 10vh) rotate(-180deg); }
+  75% { transform: translate(10vw, 65vh) rotate(-270deg); }
+  100% { transform: translate(70vw, 50vh) rotate(-360deg); }
+}
+
+@keyframes floatPath6 {
+  0% { transform: translate(15vw, 80vh) rotate(0deg); }
+  20% { transform: translate(75vw, 70vh) rotate(72deg); }
+  40% { transform: translate(50vw, 25vh) rotate(144deg); }
+  60% { transform: translate(85vw, 45vh) rotate(216deg); }
+  80% { transform: translate(35vw, 55vh) rotate(288deg); }
+  100% { transform: translate(15vw, 80vh) rotate(360deg); }
+}
+
+@keyframes floatPath7 {
+  0% { transform: translate(45vw, 40vh) rotate(0deg); }
+  33% { transform: translate(5vw, 70vh) rotate(-120deg); }
+  66% { transform: translate(90vw, 60vh) rotate(-240deg); }
+  100% { transform: translate(45vw, 40vh) rotate(-360deg); }
+}
+
+/* Icon-specific animations */
+.floating-social-icon:nth-child(1) {
+  --duration: 25s;
+  --delay: 0s;
+  animation-name: floatPath1;
+  top: 10vh;
+  left: 5vw;
+}
+
+.floating-social-icon:nth-child(2) {
+  --duration: 30s;
+  --delay: 3s;
+  animation-name: floatPath2;
+  top: 20vh;
+  left: 90vw;
+}
+
+.floating-social-icon:nth-child(3) {
+  --duration: 28s;
+  --delay: 6s;
+  animation-name: floatPath3;
+  top: 15vh;
+  left: 50vw;
+}
+
+.floating-social-icon:nth-child(4) {
+  --duration: 32s;
+  --delay: 9s;
+  animation-name: floatPath4;
+  top: 75vh;
+  left: 30vw;
+}
+
+.floating-social-icon:nth-child(5) {
+  --duration: 27s;
+  --delay: 12s;
+  animation-name: floatPath5;
+  top: 50vh;
+  left: 70vw;
+}
+
+.floating-social-icon:nth-child(6) {
+  --duration: 35s;
+  --delay: 15s;
+  animation-name: floatPath6;
+  top: 80vh;
+  left: 15vw;
+}
+
+.floating-social-icon:nth-child(7) {
+  --duration: 29s;
+  --delay: 18s;
+  animation-name: floatPath7;
+  top: 40vh;
+  left: 45vw;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .floating-social-icon {
+    width: 40px;
+    height: 40px;
+    font-size: 20px;
+  }
+}
+
+/* Ensure icons don't interfere with clickable content */
+.hero, .header, .features-overview, .interactive-demo-section, .footer {
+  position: relative;
+  z-index: 10;
+}
+
+/* Hide original footer social icons since we have floating ones */
+.footer-social {
+  display: none !important;
+}
+
+/* ===== DEMO SECTION DECORATIVE ELEMENTS ===== */
+
+/* Demo Section Decorations Container */
+.demo-decorations {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 0;
+}
+
+/* Floating Planets for Demo Sections */
+.demo-planet {
+  position: absolute;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, rgba(0, 228, 255, 0.3), rgba(189, 8, 29, 0.2));
+  box-shadow: 
+    0 0 30px rgba(0, 228, 255, 0.3),
+    inset 0 0 20px rgba(255, 255, 255, 0.1);
+  animation: floatPlanet 20s ease-in-out infinite;
+}
+
+.demo-planet.planet-1 {
+  width: 80px;
+  height: 80px;
+  top: 10%;
+  left: 5%;
+  animation-delay: 0s;
+  animation-duration: 18s;
+}
+
+.demo-planet.planet-2 {
+  width: 60px;
+  height: 60px;
+  top: 70%;
+  left: 8%;
+  animation-delay: 3s;
+  animation-duration: 22s;
+  background: radial-gradient(circle at 30% 30%, rgba(189, 8, 29, 0.3), rgba(131, 56, 236, 0.2));
+}
+
+.demo-planet.planet-3 {
+  width: 100px;
+  height: 100px;
+  top: 15%;
+  right: 5%;
+  animation-delay: 6s;
+  animation-duration: 25s;
+  background: radial-gradient(circle at 30% 30%, rgba(131, 56, 236, 0.3), rgba(0, 228, 255, 0.2));
+}
+
+.demo-planet.planet-4 {
+  width: 70px;
+  height: 70px;
+  top: 65%;
+  right: 8%;
+  animation-delay: 9s;
+  animation-duration: 20s;
+}
+
+@keyframes floatPlanet {
+  0%, 100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-30px) rotate(180deg);
+  }
+}
+
+/* Floating Social Icons for Demo Sections */
+.demo-social-icon {
+  position: absolute;
+  width: 45px;
+  height: 45px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, rgba(0, 228, 255, 0.15), rgba(189, 8, 29, 0.15));
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(0, 228, 255, 0.3);
+  border-radius: 10px;
+  color: #00E4FF;
+  font-size: 20px;
+  box-shadow: 0 4px 15px rgba(0, 228, 255, 0.2);
+  animation: floatDemoIcon 15s ease-in-out infinite;
+}
+
+/* Left side icons */
+.demo-social-icon.left-1 {
+  top: 25%;
+  left: 3%;
+  animation-delay: 0s;
+  color: #E1306C; /* Instagram */
+}
+
+.demo-social-icon.left-2 {
+  top: 50%;
+  left: 5%;
+  animation-delay: 2s;
+  color: #1877F2; /* Facebook */
+}
+
+.demo-social-icon.left-3 {
+  top: 75%;
+  left: 2%;
+  animation-delay: 4s;
+  color: #25D366; /* WhatsApp */
+}
+
+/* Right side icons */
+.demo-social-icon.right-1 {
+  top: 30%;
+  right: 3%;
+  animation-delay: 1s;
+  color: #0077B5; /* LinkedIn */
+}
+
+.demo-social-icon.right-2 {
+  top: 55%;
+  right: 5%;
+  animation-delay: 3s;
+  color: #FF0000; /* YouTube */
+}
+
+.demo-social-icon.right-3 {
+  top: 80%;
+  right: 2%;
+  animation-delay: 5s;
+  color: #1D9BF0; /* Twitter */
+}
+
+@keyframes floatDemoIcon {
+  0%, 100% {
+    transform: translateY(0) rotate(0deg) scale(1);
+  }
+  25% {
+    transform: translateY(-15px) rotate(5deg) scale(1.05);
+  }
+  50% {
+    transform: translateY(-25px) rotate(-5deg) scale(1.1);
+  }
+  75% {
+    transform: translateY(-15px) rotate(3deg) scale(1.05);
+  }
+}
+
+/* Ensure demo sections have relative positioning */
+.interactive-demo-section {
+  position: relative;
+  overflow: hidden;
+}
