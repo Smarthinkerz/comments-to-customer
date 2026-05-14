@@ -1,0 +1,446 @@
+@media (max-width: 1024px) {
+    .cc-hero-container {
+        grid-template-columns: 1fr;
+        gap: 40px;
+        text-align: center;
+    }
+
+    .hero-title {
+        font-size: 40px;
+    }
+
+    .hero-subtitle {
+        margin: 0 auto 32px;
+    }
+
+    .hero-cta-group {
+        justify-content: center;
+    }
+
+    .hero-stats {
+        justify-content: center;
+    }
+
+    .cc-hero-visual {
+        order: -1;
+    }
+
+    .orbital-system {
+        width: 300px;
+        height: 300px;
+    }
+
+    .features-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .feature-items-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .demo-split-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .pricing-grid {
+        grid-template-columns: 1fr;
+        max-width: 380px;
+    }
+
+    .cc-footer-columns {
+        grid-template-columns: repeat(3, 1fr);
+    }
+
+    .modal-pricing-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 768px) {
+    .cc-mobile-toggle {
+        display: block;
+    }
+
+    .cc-nav {
+        position: fixed;
+        top: 0;
+        right: -100%;
+        width: 85%;
+        max-width: 360px;
+        height: 100vh;
+        background: var(--bg-card);
+        flex-direction: column;
+        align-items: stretch;
+        padding: 80px 24px 24px;
+        transition: right 0.3s ease;
+        z-index: 1000;
+        overflow-y: auto;
+        gap: 16px;
+        box-shadow: -10px 0 30px rgba(0,0,0,0.5);
+    }
+
+    .cc-nav.mobile-open {
+        right: 0;
+    }
+
+    .cc-nav-links {
+        flex-direction: column;
+        gap: 0;
+    }
+
+    .cc-nav-link {
+        padding: 14px 16px;
+        font-size: 16px;
+        border-radius: 10px;
+    }
+
+    .cc-dropdown-menu {
+        position: static;
+        transform: none;
+        opacity: 1;
+        visibility: visible;
+        display: none;
+        min-width: auto;
+        border: none;
+        background: rgba(108, 58, 237, 0.05);
+        margin: 4px 0;
+        box-shadow: none;
+    }
+
+    .cc-nav-item.has-dropdown:hover > .cc-dropdown-menu {
+        opacity: 1;
+        visibility: visible;
+        transform: none;
+    }
+
+    .cc-nav-item.dropdown-open > .cc-dropdown-menu {
+        display: block;
+    }
+
+    .cc-nav-actions {
+        flex-direction: column;
+        width: 100%;
+        gap: 8px;
+    }
+
+    .btn-login,
+    .btn-signup {
+        width: 100%;
+        text-align: center;
+        padding: 14px;
+        font-size: 16px;
+    }
+
+    .lang-toggle {
+        align-self: center;
+        margin: 4px 0;
+    }
+
+    .hero-title {
+        font-size: 32px;
+    }
+
+    .hero-subtitle {
+        font-size: 16px;
+    }
+
+    .hero-cta-group {
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .btn-hero-primary,
+    .btn-hero-secondary {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .hero-stats {
+        flex-wrap: wrap;
+        gap: 16px;
+    }
+
+    .hero-stat-divider {
+        display: none;
+    }
+
+    .orbital-system {
+        width: 300px;
+        height: 300px;
+    }
+
+    .orbital-rim {
+        width: 280px;
+        height: 280px;
+    }
+
+    .planet {
+        width: 55px;
+        height: 55px;
+    }
+
+    .planet-ring-orbit {
+        width: 80px;
+        height: 80px;
+    }
+
+    .planet-bottom .planet-ring-orbit {
+        width: 75px;
+        height: 75px;
+    }
+
+    .orbital-center-hub {
+        width: 140px;
+    }
+
+    .hms-val {
+        font-size: 12px;
+    }
+
+    .social-orbit {
+        width: 240px;
+        height: 240px;
+    }
+
+    .orbit-icon {
+        width: 32px;
+        height: 32px;
+        font-size: 13px;
+    }
+
+    .twinkle-star {
+        width: 2px;
+        height: 2px;
+    }
+
+    .cc-section-title {
+        font-size: 28px;
+    }
+
+    .cc-section-subtitle {
+        font-size: 15px;
+    }
+
+    .features-category-tabs {
+        overflow-x: auto;
+        justify-content: flex-start;
+        flex-wrap: nowrap;
+        padding-bottom: 8px;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .tab-btn {
+        white-space: nowrap;
+        flex-shrink: 0;
+    }
+
+    .feature-items-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .cc-footer-columns {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .demo-flow-steps {
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+
+    .flow-arrow {
+        display: none;
+    }
+
+    .cc-modal-content {
+        padding: 24px;
+        width: 95%;
+        max-height: 90vh;
+    }
+
+    .cc-modal-header h2 {
+        font-size: 20px;
+    }
+
+    .modal-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 480px) {
+    .cc-header-container {
+        padding: 0 16px;
+    }
+
+    .cc-container {
+        padding: 0 16px;
+    }
+
+    .hero-title {
+        font-size: 28px;
+    }
+
+    .cc-hero {
+        padding: 100px 0 60px;
+    }
+
+    .orbital-system {
+        width: 240px;
+        height: 240px;
+    }
+
+    .orbital-rim {
+        width: 220px;
+        height: 220px;
+        border-width: 2px;
+    }
+
+    .planet {
+        width: 40px;
+        height: 40px;
+    }
+
+    .planet-ring-orbit {
+        width: 60px;
+        height: 60px;
+    }
+
+    .planet-bottom .planet-ring-orbit {
+        width: 55px;
+        height: 55px;
+    }
+
+    .orbital-center-hub {
+        width: 110px;
+    }
+
+    .hub-header {
+        padding: 4px 6px;
+    }
+
+    .hub-dot {
+        width: 5px;
+        height: 5px;
+    }
+
+    .hub-title {
+        font-size: 6px;
+    }
+
+    .hub-content {
+        padding: 6px;
+    }
+
+    .hms-val {
+        font-size: 10px;
+    }
+
+    .hms-label {
+        font-size: 6px;
+    }
+
+    .social-orbit {
+        width: 190px;
+        height: 190px;
+    }
+
+    .orbit-icon {
+        width: 26px;
+        height: 26px;
+        font-size: 11px;
+    }
+
+    .video-hover-overlay i {
+        font-size: 40px;
+    }
+
+    .video-hover-overlay span {
+        font-size: 12px;
+    }
+
+    .hero-stats {
+        justify-content: space-around;
+    }
+
+    .stat-number {
+        font-size: 22px;
+    }
+
+    .cc-features-overview,
+    .cc-all-features,
+    .cc-demo-section,
+    .cc-pricing-section {
+        padding: 60px 0;
+    }
+
+    .cc-section-title {
+        font-size: 24px;
+    }
+
+    .feature-card {
+        padding: 24px;
+    }
+
+    .feature-item-card {
+        padding: 20px;
+    }
+
+    .fi-image {
+        height: 120px;
+    }
+
+    .pricing-card {
+        padding: 28px 20px;
+    }
+
+    .pricing-price {
+        font-size: 36px;
+    }
+
+    .cc-footer-columns {
+        grid-template-columns: 1fr;
+    }
+
+    .footer-social {
+        gap: 8px;
+    }
+
+    .cc-modal-content {
+        padding: 20px;
+    }
+
+    .cc-modal-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+
+    .modal-feature-item {
+        flex-direction: column;
+        gap: 10px;
+        padding: 14px;
+    }
+}
+
+@media (max-width: 360px) {
+    .logo-text {
+        font-size: 16px;
+    }
+
+    .hero-title {
+        font-size: 24px;
+    }
+
+    .hero-subtitle {
+        font-size: 14px;
+    }
+
+    .cc-section-title {
+        font-size: 22px;
+    }
+
+    .btn-hero-primary,
+    .btn-hero-secondary {
+        padding: 12px 24px;
+        font-size: 14px;
+    }
+}
