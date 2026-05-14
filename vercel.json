@@ -1,6 +1,7 @@
 {
   "version": 2,
-  "buildCommand": null,
+  "buildCommand": "echo 'no build step — server.cjs is the entrypoint'",
+  "installCommand": "npm install --omit=dev --no-audit --no-fund --ignore-scripts",
   "outputDirectory": null,
   "framework": null,
   "rewrites": [
