@@ -17,3 +17,5 @@ These video files are excluded from git (each ~70MB; GitHub rejects single files
 - Total size ~143 MB → would inflate every clone of the repo.
 - GitHub hard-limits single files at 100 MB; even Git LFS adds bandwidth limits on Vercel's free tier.
 - Videos rarely change — a CDN URL is the right long-term home.
+
+<!-- redeploy trigger: 2026-05-14T11:10:10.724Z -->
