@@ -91,6 +91,10 @@
             </ul>
 
             <div class="cc-nav-actions">
+                <a href="https://www.smarthinkerz.com" target="_blank" rel="noopener" class="btn-hub" data-testid="link-smarthinkerz-hub" title="Back to SmarThinkerz Hub">
+                    <i class="fas fa-arrow-left"></i>
+                    <span>Back to SmarThinkerz Hub</span>
+                </a>
                 <button class="btn-login" id="openUserLogin" data-testid="btn-user-login" data-i18n="nav.login">Login</button>
 
                 <div class="lang-toggle" aria-label="Language toggle">
