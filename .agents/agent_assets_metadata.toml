@@ -1,0 +1,20 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "AZA9w0BcAOLUrMBGMCIXO"
+uri = "file://.local/audit-report.md"
+type = "text"
+title = "CommentCustomer.ai — Round 4 Audit (Observability + Zero-Trust API + Event Bus)"
+
+[[outputs]]
+id = "ShsI1Gg6gWvgOOn-YY_fl"
+uri = "file://.local/distributed-readiness-audit.md"
+type = "text"
+title = "Distributed-Systems Readiness Audit — FAANG-level honest review"
+
+[[outputs]]
+id = "eFUHqwAdyRLbWTudZDRly"
+uri = "file://.local/strict-distributed-audit.md"
+type = "text"
+title = "Strict Distributed Systems Audit — FAANG-level, no inflation"
