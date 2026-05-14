@@ -1,0 +1,51 @@
+###############################################################################
+# CommentCustomer.ai — systemd service unit
+###############################################################################
+# Installed by scripts/install.sh to /etc/systemd/system/commentcustomer.service
+#
+# Manage with:
+#   sudo systemctl start    commentcustomer
+#   sudo systemctl stop     commentcustomer
+#   sudo systemctl restart  commentcustomer
+#   sudo systemctl status   commentcustomer
+#   sudo journalctl -u commentcustomer -f      # tail logs
+###############################################################################
+
+[Unit]
+Description=CommentCustomer.ai web application
+After=network.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=commentcustomer
+Group=commentcustomer
+WorkingDirectory=/opt/commentcustomer
+EnvironmentFile=/opt/commentcustomer/.env
+ExecStart=/usr/bin/node server.cjs
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=commentcustomer
+
+# Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/commentcustomer
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+LockPersonality=true
+# NOTE: MemoryDenyWriteExecute is intentionally NOT set — Node's V8 JIT requires
+# writable+executable memory regions, and enabling it crashes the process on startup.
+
+# Resource limits (raise for higher-traffic VPS; lower if you're on a 1 GB droplet)
+LimitNOFILE=65535
+MemoryMax=1G
+
+[Install]
+WantedBy=multi-user.target
