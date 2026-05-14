@@ -293,6 +293,40 @@ body.menu-open {
     background: rgba(108, 58, 237, 0.1);
 }
 
+.btn-hub {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(124, 58, 237, 0.35);
+    color: var(--text-white);
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    text-decoration: none;
+    transition: var(--transition);
+    white-space: nowrap;
+}
+
+.btn-hub i {
+    font-size: 11px;
+    color: #a78bfa;
+}
+
+.btn-hub:hover {
+    border-color: #a78bfa;
+    background: rgba(124, 58, 237, 0.12);
+    color: #fff;
+    transform: translateX(-2px);
+}
+
+@media (max-width: 1024px) {
+    .btn-hub span { display: none; }
+    .btn-hub { padding: 8px 10px; }
+    .btn-hub i { font-size: 14px; }
+}
+
 .btn-signup {
     background: var(--gradient-primary);
     color: white;
