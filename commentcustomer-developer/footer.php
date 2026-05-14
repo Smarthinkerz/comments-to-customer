@@ -89,6 +89,7 @@
 
         <div class="cc-footer-bottom">
             <p data-i18n="footer.copy">&copy; <?php echo date('Y'); ?> CommentCustomer.ai &mdash; A subsidiary of CSB (Cosmic Surrounding Business). All rights reserved.</p>
+            <p class="cc-footer-hub">Part of the <a href="https://smarhinkerz.com" data-testid="link-footer-smarthinkerz-hub">SmarThinkerz Unified Intelligence Hub</a></p>
         </div>
     </div>
 </footer>
