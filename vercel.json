@@ -7,16 +7,16 @@
     { "source": "/(.*)", "destination": "/api/all" }
   ],
   "functions": {
-    "api/all.cjs": {
+    "api/all.js": {
       "memory": 1024,
       "maxDuration": 30,
       "includeFiles": "commentcustomer-developer/**"
     },
-    "api/cron/outbox.cjs": {
+    "api/cron/outbox.js": {
       "memory": 512,
       "maxDuration": 60
     },
-    "api/cron/maintenance.cjs": {
+    "api/cron/maintenance.js": {
       "memory": 512,
       "maxDuration": 60
     }
