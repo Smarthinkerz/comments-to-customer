@@ -1,0 +1,28 @@
+{
+  "version": 2,
+  "buildCommand": null,
+  "outputDirectory": null,
+  "framework": null,
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/api/all" }
+  ],
+  "functions": {
+    "api/all.cjs": {
+      "memory": 1024,
+      "maxDuration": 30,
+      "includeFiles": "commentcustomer-developer/**"
+    },
+    "api/cron/outbox.cjs": {
+      "memory": 512,
+      "maxDuration": 60
+    },
+    "api/cron/maintenance.cjs": {
+      "memory": 512,
+      "maxDuration": 60
+    }
+  },
+  "crons": [
+    { "path": "/api/cron/outbox",      "schedule": "* * * * *" },
+    { "path": "/api/cron/maintenance", "schedule": "*/5 * * * *" }
+  ]
+}
