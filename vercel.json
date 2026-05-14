@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "buildCommand": "mkdir -p dist && echo '<!-- placeholder; all routes are rewritten to /api/all -->' > dist/index.html",
+  "buildCommand": "mkdir -p dist && touch dist/.keep",
   "installCommand": "npm install --omit=dev --no-audit --no-fund --ignore-scripts",
   "outputDirectory": "dist",
   "framework": null,
