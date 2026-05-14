@@ -1,0 +1,19 @@
+node_modules/
+.env
+.env.local
+.local/
+attached_assets/
+*.log
+.DS_Store
+.replit
+replit.nix
+.cache/
+.upm/
+.config/
+.pythonlibs/
+__pycache__/
+*.pyc
+# Large media — host on CDN, see commentcustomer-developer/assets/videos/README.md
+commentcustomer-developer/assets/videos/*.mp4
+commentcustomer-developer/assets/videos/*.webm
+commentcustomer-developer/assets/videos/*.mov
