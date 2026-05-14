@@ -1,0 +1,250 @@
+/**
+ * VIDEO MODAL - Watch Demo Button
+ * Cosmic-themed video player popup with autoplay
+ */
+
+/* Modal Overlay */
+.video-modal {
+  display: none;
+  position: fixed;
+  z-index: 10000;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  background: linear-gradient(135deg, rgba(10, 15, 44, 0.95), rgba(26, 26, 26, 0.95));
+  backdrop-filter: blur(10px);
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Modal Content Container */
+.video-modal-content {
+  position: relative;
+  margin: 5% auto;
+  padding: 0;
+  width: 90%;
+  max-width: 1200px;
+  background: linear-gradient(135deg, rgba(10, 15, 44, 0.8), rgba(26, 26, 26, 0.8));
+  border: 2px solid rgba(0, 228, 255, 0.4);
+  border-radius: 20px;
+  box-shadow: 
+    0 0 60px rgba(0, 228, 255, 0.4),
+    0 0 100px rgba(189, 8, 29, 0.2),
+    inset 0 0 40px rgba(0, 228, 255, 0.1);
+  animation: slideDown 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  overflow: hidden;
+}
+
+@keyframes slideDown {
+  from {
+    transform: translateY(-100px) scale(0.9);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+/* Modal Header */
+.video-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 30px;
+  background: linear-gradient(135deg, rgba(0, 228, 255, 0.1), rgba(189, 8, 29, 0.1));
+  border-bottom: 1px solid rgba(0, 228, 255, 0.3);
+}
+
+.video-modal-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: #00E4FF;
+  text-shadow: 0 0 20px rgba(0, 228, 255, 0.6);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.video-modal-title i {
+  font-size: 28px;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 0.8;
+  }
+}
+
+/* Close Button */
+.video-modal-close {
+  width: 40px;
+  height: 40px;
+  background: linear-gradient(135deg, rgba(189, 8, 29, 0.3), rgba(131, 56, 236, 0.3));
+  border: 2px solid rgba(189, 8, 29, 0.6);
+  border-radius: 50%;
+  color: #FF6FB5;
+  font-size: 24px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 20px rgba(189, 8, 29, 0.4);
+}
+
+.video-modal-close:hover {
+  background: linear-gradient(135deg, rgba(189, 8, 29, 0.5), rgba(131, 56, 236, 0.5));
+  transform: rotate(90deg) scale(1.1);
+  box-shadow: 0 0 30px rgba(189, 8, 29, 0.6);
+  border-color: rgba(189, 8, 29, 0.9);
+}
+
+/* Video Container */
+.video-modal-player {
+  position: relative;
+  width: 100%;
+  padding: 30px;
+  background: rgba(10, 15, 44, 0.5);
+}
+
+.video-modal-player video {
+  width: 100%;
+  height: auto;
+  max-height: 70vh;
+  border-radius: 12px;
+  box-shadow: 
+    0 10px 40px rgba(0, 0, 0, 0.5),
+    0 0 30px rgba(0, 228, 255, 0.2);
+  outline: none;
+}
+
+/* Video Controls Enhancement */
+.video-modal-player video::-webkit-media-controls-panel {
+  background: linear-gradient(to bottom, transparent, rgba(0, 0, 0, 0.8));
+}
+
+/* Loading State */
+.video-loading {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: #00E4FF;
+  font-size: 18px;
+  text-align: center;
+}
+
+.video-loading i {
+  font-size: 48px;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Modal Footer Info */
+.video-modal-footer {
+  padding: 20px 30px;
+  background: linear-gradient(135deg, rgba(0, 228, 255, 0.05), rgba(189, 8, 29, 0.05));
+  border-top: 1px solid rgba(0, 228, 255, 0.2);
+  text-align: center;
+  color: #b0b0b0;
+  font-size: 14px;
+}
+
+.video-modal-footer p {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.video-modal-footer i {
+  color: #00E4FF;
+  font-size: 16px;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .video-modal-content {
+    width: 95%;
+    margin: 10% auto;
+  }
+
+  .video-modal-header {
+    padding: 15px 20px;
+  }
+
+  .video-modal-title {
+    font-size: 18px;
+  }
+
+  .video-modal-close {
+    width: 35px;
+    height: 35px;
+    font-size: 20px;
+  }
+
+  .video-modal-player {
+    padding: 20px;
+  }
+
+  .video-modal-player video {
+    max-height: 50vh;
+  }
+}
+
+/* Accessibility - Focus States */
+.video-modal-close:focus {
+  outline: 2px solid #00E4FF;
+  outline-offset: 3px;
+}
+
+/* ESC Key Hint */
+.video-modal-footer .esc-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  background: rgba(0, 228, 255, 0.1);
+  border: 1px solid rgba(0, 228, 255, 0.3);
+  border-radius: 20px;
+  color: #00E4FF;
+  font-size: 12px;
+  font-weight: 600;
+  margin-left: 15px;
+}
+
+.video-modal-footer .esc-hint kbd {
+  background: rgba(0, 228, 255, 0.2);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 11px;
+  border: 1px solid rgba(0, 228, 255, 0.4);
+}
