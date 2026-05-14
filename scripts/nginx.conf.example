@@ -1,0 +1,66 @@
+###############################################################################
+# CommentCustomer.ai — nginx reverse proxy config
+###############################################################################
+# Installed by scripts/install.sh to /etc/nginx/sites-available/commentcustomer
+# (with __DOMAIN__ substituted for the real domain).
+#
+# After install, certbot will automatically rewrite this file to add TLS.
+###############################################################################
+
+# Redirect all HTTP to HTTPS (certbot adds this automatically; left here as a
+# fallback in case you run the script with --skip-tls).
+server {
+    listen 80;
+    listen [::]:80;
+    server_name __DOMAIN__ www.__DOMAIN__;
+
+    # Let's Encrypt ACME challenge path
+    location /.well-known/acme-challenge/ {
+        root /var/www/html;
+    }
+
+    # Proxy everything else (will be replaced with 301 redirect after certbot runs)
+    location / {
+        proxy_pass http://127.0.0.1:5000;
+        proxy_http_version 1.1;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Upgrade           $http_upgrade;
+        proxy_set_header Connection        "upgrade";
+        proxy_read_timeout 60s;
+        proxy_send_timeout 60s;
+
+        # Rate-limit-friendly buffer sizes
+        client_max_body_size 10M;
+        proxy_buffer_size    16k;
+        proxy_buffers        8 16k;
+    }
+
+    # Don't log healthcheck noise (exact-match — does not interfere with main proxy)
+    location = /healthz {
+        proxy_pass http://127.0.0.1:5000;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        access_log off;
+    }
+
+    # Static-asset caching is handled by Express's built-in static middleware
+    # (Cache-Control headers set in server.cjs). Avoiding a regex location block
+    # here prevents Nginx regex precedence from hijacking dynamic .js routes.
+
+    # Security headers (certbot will preserve these on its rewrite)
+    add_header X-Frame-Options          "SAMEORIGIN"        always;
+    add_header X-Content-Type-Options   "nosniff"           always;
+    add_header Referrer-Policy          "strict-origin-when-cross-origin" always;
+    add_header Permissions-Policy       "geolocation=(), microphone=(), camera=()" always;
+
+    # gzip compression
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_types text/plain text/css text/xml application/json application/javascript application/xml+rss application/atom+xml image/svg+xml;
+}
