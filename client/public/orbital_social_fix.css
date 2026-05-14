@@ -1,0 +1,226 @@
+/**
+ * ORBITAL SOCIAL ICONS FIX
+ * 1. Fix X icon covering newsletter content
+ * 2. Add random floating animation to footer social icons
+ */
+
+/* Fix newsletter section z-index to prevent overlap */
+.footer-newsletter {
+  position: relative;
+  z-index: 10 !important;
+  pointer-events: auto !important;
+}
+
+.footer-newsletter * {
+  pointer-events: auto !important;
+}
+
+/* Fix footer social icons z-index */
+.footer-social {
+  position: relative;
+  z-index: 5 !important;
+  margin-top: 40px;
+}
+
+/* Random Floating Animation for Footer Social Icons */
+.footer-social .social-icon {
+  position: relative;
+  animation: floatRandom var(--float-duration, 4s) ease-in-out infinite;
+  animation-delay: var(--float-delay, 0s);
+  transform-origin: center center;
+}
+
+/* Different animation for each icon */
+.footer-social .social-icon:nth-child(1) {
+  --float-duration: 3.5s;
+  --float-delay: 0s;
+  animation-name: floatRandom1;
+}
+
+.footer-social .social-icon:nth-child(2) {
+  --float-duration: 4.2s;
+  --float-delay: 0.5s;
+  animation-name: floatRandom2;
+}
+
+.footer-social .social-icon:nth-child(3) {
+  --float-duration: 3.8s;
+  --float-delay: 1s;
+  animation-name: floatRandom3;
+}
+
+.footer-social .social-icon:nth-child(4) {
+  --float-duration: 4.5s;
+  --float-delay: 1.5s;
+  animation-name: floatRandom4;
+}
+
+.footer-social .social-icon:nth-child(5) {
+  --float-duration: 3.3s;
+  --float-delay: 2s;
+  animation-name: floatRandom5;
+}
+
+/* Keyframe animations - subtle random movements */
+@keyframes floatRandom1 {
+  0%, 100% {
+    transform: translate(0, 0) rotate(0deg) scale(1);
+  }
+  25% {
+    transform: translate(8px, -12px) rotate(3deg) scale(1.05);
+  }
+  50% {
+    transform: translate(-5px, -8px) rotate(-2deg) scale(1.02);
+  }
+  75% {
+    transform: translate(10px, -15px) rotate(4deg) scale(1.08);
+  }
+}
+
+@keyframes floatRandom2 {
+  0%, 100% {
+    transform: translate(0, 0) rotate(0deg) scale(1);
+  }
+  20% {
+    transform: translate(-10px, -10px) rotate(-3deg) scale(1.06);
+  }
+  40% {
+    transform: translate(12px, -5px) rotate(2deg) scale(1.03);
+  }
+  60% {
+    transform: translate(-8px, -18px) rotate(-4deg) scale(1.09);
+  }
+  80% {
+    transform: translate(6px, -12px) rotate(1deg) scale(1.04);
+  }
+}
+
+@keyframes floatRandom3 {
+  0%, 100% {
+    transform: translate(0, 0) rotate(0deg) scale(1);
+  }
+  30% {
+    transform: translate(15px, -8px) rotate(5deg) scale(1.07);
+  }
+  60% {
+    transform: translate(-12px, -20px) rotate(-3deg) scale(1.05);
+  }
+  90% {
+    transform: translate(8px, -6px) rotate(2deg) scale(1.03);
+  }
+}
+
+@keyframes floatRandom4 {
+  0%, 100% {
+    transform: translate(0, 0) rotate(0deg) scale(1);
+  }
+  25% {
+    transform: translate(-7px, -14px) rotate(-4deg) scale(1.06);
+  }
+  50% {
+    transform: translate(11px, -9px) rotate(3deg) scale(1.08);
+  }
+  75% {
+    transform: translate(-14px, -16px) rotate(-2deg) scale(1.04);
+  }
+}
+
+@keyframes floatRandom5 {
+  0%, 100% {
+    transform: translate(0, 0) rotate(0deg) scale(1);
+  }
+  20% {
+    transform: translate(9px, -11px) rotate(2deg) scale(1.05);
+  }
+  40% {
+    transform: translate(-11px, -7px) rotate(-4deg) scale(1.07);
+  }
+  60% {
+    transform: translate(13px, -19px) rotate(3deg) scale(1.09);
+  }
+  80% {
+    transform: translate(-6px, -13px) rotate(-1deg) scale(1.03);
+  }
+}
+
+/* Add subtle floating to orbital hero social icons too */
+.social-orbit .social-icon {
+  animation: floatSubtle var(--orbit-float-duration, 5s) ease-in-out infinite;
+  animation-delay: var(--orbit-float-delay, 0s);
+}
+
+.social-orbit .social-icon:nth-child(1) {
+  --orbit-float-duration: 4.5s;
+  --orbit-float-delay: 0s;
+}
+
+.social-orbit .social-icon:nth-child(2) {
+  --orbit-float-duration: 5.2s;
+  --orbit-float-delay: 0.6s;
+}
+
+.social-orbit .social-icon:nth-child(3) {
+  --orbit-float-duration: 4.8s;
+  --orbit-float-delay: 1.2s;
+}
+
+.social-orbit .social-icon:nth-child(4) {
+  --orbit-float-duration: 5.5s;
+  --orbit-float-delay: 1.8s;
+}
+
+.social-orbit .social-icon:nth-child(5) {
+  --orbit-float-duration: 4.3s;
+  --orbit-float-delay: 2.4s;
+}
+
+.social-orbit .social-icon:nth-child(6) {
+  --orbit-float-duration: 5.1s;
+  --orbit-float-delay: 3s;
+}
+
+.social-orbit .social-icon:nth-child(7) {
+  --orbit-float-duration: 4.7s;
+  --orbit-float-delay: 3.6s;
+}
+
+.social-orbit .social-icon:nth-child(8) {
+  --orbit-float-duration: 5.3s;
+  --orbit-float-delay: 4.2s;
+}
+
+@keyframes floatSubtle {
+  0%, 100% {
+    transform: translate(var(--orbit-x, 0), var(--orbit-y, 0)) scale(1);
+  }
+  50% {
+    transform: translate(var(--orbit-x, 0), calc(var(--orbit-y, 0) - 8px)) scale(1.05);
+  }
+}
+
+/* Enhanced hover effect for social icons */
+.footer-social .social-icon:hover,
+.social-orbit .social-icon:hover {
+  animation-play-state: paused !important;
+  transform: scale(1.15) rotate(5deg) !important;
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
+}
+
+/* Ensure newsletter content is always on top */
+.newsletter-form {
+  position: relative;
+  z-index: 15 !important;
+}
+
+.newsletter-input,
+.newsletter-btn {
+  position: relative;
+  z-index: 20 !important;
+  pointer-events: auto !important;
+}
+
+/* Fix any potential overlap issues */
+.footer-bottom {
+  margin-top: 60px;
+  padding-top: 30px;
+}
