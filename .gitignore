@@ -13,6 +13,10 @@ replit.nix
 .pythonlibs/
 __pycache__/
 *.pyc
+dist/
+.vercel/
+server/public/
+*.tar.gz
 # Large media — host on CDN, see commentcustomer-developer/assets/videos/README.md
 commentcustomer-developer/assets/videos/*.mp4
 commentcustomer-developer/assets/videos/*.webm
