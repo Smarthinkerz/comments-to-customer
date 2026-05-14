@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "buildCommand": "echo 'no build step — server.cjs is the entrypoint'",
+  "buildCommand": "mkdir -p dist && echo '<!-- placeholder; all routes are rewritten to /api/all -->' > dist/index.html",
   "installCommand": "npm install --omit=dev --no-audit --no-fund --ignore-scripts",
-  "outputDirectory": null,
+  "outputDirectory": "dist",
   "framework": null,
   "rewrites": [
     { "source": "/(.*)", "destination": "/api/all" }
