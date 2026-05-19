@@ -7,6 +7,7 @@
   "rewrites": [
     { "source": "/assets/(.*)", "destination": "/assets/$1" },
     { "source": "/site.webmanifest", "destination": "/site.webmanifest" },
+    { "source": "/api/webhooks/smarthinkerz", "destination": "/api/all" },
     { "source": "/(.*)", "destination": "/api/all" }
   ],
   "functions": {
