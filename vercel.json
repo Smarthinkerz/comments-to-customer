@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "buildCommand": "mkdir -p dist/assets && cp -r commentcustomer-developer/assets/css commentcustomer-developer/assets/js commentcustomer-developer/assets/images dist/assets/ && cp commentcustomer-developer/site.webmanifest dist/ 2>/dev/null || true",
+  "buildCommand": "mkdir -p dist/assets/videos && cp -r commentcustomer-developer/assets/css commentcustomer-developer/assets/js commentcustomer-developer/assets/images dist/assets/ && cp commentcustomer-developer/assets/videos/*.mp4 dist/assets/videos/ && cp commentcustomer-developer/site.webmanifest dist/ 2>/dev/null || true",
   "installCommand": "npm install --omit=dev --no-audit --no-fund --ignore-scripts",
   "outputDirectory": "dist",
   "framework": null,
