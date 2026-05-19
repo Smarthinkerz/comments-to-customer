@@ -14,9 +14,6 @@
       "maxDuration": 30,
       "includeFiles": "commentcustomer-developer/**/*.php"
     },
-    "api/webhooks/smarthinkerz.js": {
-      "maxDuration": 30
-    },
     "api/cron/outbox.js": {
       "maxDuration": 60
     },
