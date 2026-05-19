@@ -2310,6 +2310,12 @@ body.menu-open {
     border-radius: var(--radius-lg);
     overflow: hidden;
     position: relative;
+    opacity: 1;
+    transform: none;
+    transition: opacity 0.5s ease, transform 0.5s ease;
+}
+
+.demo-box.pre-animate {
     opacity: 0;
     transform: translateY(20px);
 }
