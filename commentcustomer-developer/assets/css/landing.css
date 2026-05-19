@@ -2207,6 +2207,9 @@ body.menu-open {
     position: relative;
     cursor: pointer;
     transition: var(--transition);
+    aspect-ratio: 16 / 9;
+    width: 100%;
+    background: #000;
 }
 
 .cc-product-demo .demo-video-wrapper {
@@ -2227,8 +2230,10 @@ body.menu-open {
 
 .demo-video {
     width: 100%;
+    height: 100%;
     display: block;
     border-radius: var(--radius-lg);
+    object-fit: cover;
 }
 
 
@@ -3631,4 +3636,105 @@ html[dir="rtl"] .counter-text {
     position: relative;
     z-index: 50 !important;
     pointer-events: auto !important;
+}
+
+/* ─── Product Walkthroughs section ─── */
+.cc-walkthroughs-section {
+    background: var(--bg-section);
+}
+
+.walkthroughs-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 28px;
+    margin-top: 40px;
+}
+
+.walkthrough-card {
+    display: flex;
+    flex-direction: column;
+    background: rgba(20, 27, 45, 0.55);
+    border: 1px solid rgba(0, 229, 255, 0.18);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    transition: var(--transition);
+}
+
+.walkthrough-card:hover {
+    border-color: rgba(0, 229, 255, 0.45);
+    box-shadow: 0 0 24px rgba(0, 229, 255, 0.15);
+    transform: translateY(-3px);
+}
+
+.walkthrough-video-wrapper {
+    cursor: default;
+    border-radius: 0;
+    border: none;
+    border-bottom: 1px solid rgba(0, 229, 255, 0.18);
+    box-shadow: none;
+    background: #000;
+}
+
+.walkthrough-video-wrapper:hover {
+    transform: none;
+    border-color: rgba(0, 229, 255, 0.18);
+    box-shadow: none;
+}
+
+.walkthrough-video-wrapper .demo-video {
+    border-radius: 0;
+    aspect-ratio: 16 / 9;
+    object-fit: cover;
+    background: #000;
+}
+
+.walkthrough-card-body {
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.walkthrough-card-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.walkthrough-step-number {
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--neon-cyan, #00e5ff);
+    background: rgba(0, 229, 255, 0.1);
+    padding: 3px 8px;
+    border-radius: 6px;
+    letter-spacing: 1px;
+}
+
+.walkthrough-card-title i {
+    font-size: 18px;
+    color: var(--neon-cyan, #00e5ff);
+}
+
+.walkthrough-card-title h3 {
+    font-size: 16px;
+    font-weight: 600;
+    margin: 0;
+    color: var(--text-primary, #fff);
+}
+
+.walkthrough-card-body p {
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--text-muted);
+    margin: 0;
+}
+
+@media (max-width: 1024px) {
+    .walkthroughs-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 640px) {
+    .walkthroughs-grid { grid-template-columns: 1fr; gap: 20px; }
 }
