@@ -5,16 +5,12 @@
 .replit
 .config
 node_modules
-dist
 client
 server
 shared
 script
 scripts
 attached_assets
-*.png
-*.jpg
-*.jpeg
 *.tar.gz
 drizzle.config.ts
 components.json
