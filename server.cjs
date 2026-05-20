@@ -1471,9 +1471,8 @@ function buildCheckoutContent(plan, planKey, email, csrfToken) {
   <a href="/" class="back-link"><i class="fas fa-arrow-left"></i> Back to home</a>
   <h2><i class="fas fa-lock" style="color:#7c3aed;margin-right:6px;font-size:18px;"></i>Secure Payment</h2>
   <p class="sub">Your payment information is encrypted and secure.</p>
-  ${safeEmail ? `<div class="acc-badge"><i class="fas fa-user" style="margin-right:6px;"></i>Account: <strong>${safeEmail}</strong></div>` : ''}
   <form id="checkoutForm" novalidate>
-    ${safeEmail ? `<input type="hidden" id="checkoutEmail" value="${safeEmail}">` : `<div class="fg"><label>Email Address</label><input type="email" id="checkoutEmail" placeholder="you@example.com" maxlength="200" required data-testid="input-payer-email"></div>`}
+    <div class="fg"><label>Email Address</label><input type="email" id="checkoutEmail" placeholder="you@example.com" value="${safeEmail}" maxlength="200" required data-testid="input-payer-email"></div>
     <input type="hidden" id="checkoutPlan"  value="${safeKey}">
     <input type="hidden" id="checkoutCsrf"  value="${safeCsrf}">
     <div class="fg"><label>Full Name</label><input type="text" id="payerName" placeholder="As it appears on your card" value="${userName}" maxlength="120" required data-testid="input-payer-name"></div>
