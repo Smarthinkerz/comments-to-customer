@@ -1473,7 +1473,7 @@ function buildCheckoutContent(plan, planKey, email, csrfToken) {
   <p class="sub">Your payment information is encrypted and secure.</p>
   ${safeEmail ? `<div class="acc-badge"><i class="fas fa-user" style="margin-right:6px;"></i>Account: <strong>${safeEmail}</strong></div>` : ''}
   <form id="checkoutForm" novalidate>
-    <input type="hidden" id="checkoutEmail" value="${safeEmail}">
+    ${safeEmail ? `<input type="hidden" id="checkoutEmail" value="${safeEmail}">` : `<div class="fg"><label>Email Address</label><input type="email" id="checkoutEmail" placeholder="you@example.com" maxlength="200" required data-testid="input-payer-email"></div>`}
     <input type="hidden" id="checkoutPlan"  value="${safeKey}">
     <input type="hidden" id="checkoutCsrf"  value="${safeCsrf}">
     <div class="fg"><label>Full Name</label><input type="text" id="payerName" placeholder="As it appears on your card" value="${userName}" maxlength="120" required data-testid="input-payer-name"></div>
@@ -1491,8 +1491,10 @@ function buildCheckoutContent(plan, planKey, email, csrfToken) {
   if (!form) return;
   form.addEventListener('submit', function(e) {
     e.preventDefault();
+    var em = document.getElementById('checkoutEmail').value.trim();
     var nm = document.getElementById('payerName').value.trim();
     var ph = document.getElementById('payerPhone').value.trim();
+    if (!em || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(em)) { msg.textContent='Please enter a valid email address.'; msg.style.color='#ef4444'; msg.style.display='block'; return; }
     if (!nm) { msg.textContent='Please enter your full name.'; msg.style.color='#ef4444'; msg.style.display='block'; return; }
     if (!/^\\+\\d{6,15}$/.test(ph)) { msg.textContent='Phone must include country code, e.g. +96599887766.'; msg.style.color='#ef4444'; msg.style.display='block'; return; }
     btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Redirecting to Tap...'; msg.style.display = 'none';
