@@ -46,21 +46,80 @@ document.addEventListener('DOMContentLoaded', function() {
 
     /* Plan must come from server session, NOT localStorage. We render with a
        safe default and then refresh from /api/me — if the user has no session
-       the server already redirected them to /unauthorized. */
-    var currentPlan = 'trial';
+       the server already redirected them to /unauthorized.
+       sessionStorage cache prevents reload-loop flashing across the /api/me round-trip. */
+    var cachedPlan = null;
+    try { cachedPlan = sessionStorage.getItem('cc_plan'); } catch (_) {}
+    var currentPlan = (cachedPlan && TIER_CONFIG[cachedPlan]) ? cachedPlan : 'trial';
     var cfg = TIER_CONFIG[currentPlan];
     var lvl = tierLevel(currentPlan);
+
+    function fmtDate(d) {
+        try {
+            return new Date(d).toLocaleDateString(undefined, { year:'numeric', month:'short', day:'numeric' });
+        } catch (_) { return String(d); }
+    }
+    function renderBillingState(me) {
+        var d = (me && me.data) || {};
+        var status = d.billing_status || 'active';
+        var expires = d.plan_expires ? new Date(d.plan_expires) : null;
+        var planKey = d.plan || currentPlan;
+        var isPaid = ['starter','growth','pro'].indexOf(planKey) >= 0;
+
+        var renewalEl = document.getElementById('udBillingRenewal');
+        if (renewalEl) {
+            if (isPaid && expires) {
+                var label = 'Next renewal: ' + fmtDate(expires);
+                if (status === 'cancelled')  label = 'Plan ends on ' + fmtDate(expires) + ' (cancelled, no auto-renewal)';
+                else if (status === 'refunded') label = 'Refunded — access ends on ' + fmtDate(expires);
+                else if (status === 'past_due') label = 'Payment past due — renewal failed (previous period ended ' + fmtDate(expires) + ')';
+                renewalEl.textContent = label;
+                renewalEl.style.display = 'block';
+            } else {
+                renewalEl.style.display = 'none';
+            }
+        }
+
+        var alertEl = document.getElementById('udBillingAlert');
+        if (alertEl) {
+            var msg = '';
+            var tone = 'warn';
+            if (status === 'past_due') {
+                msg = '<i class="fas fa-exclamation-triangle"></i> Your last payment did not go through. Please update your payment method with our billing partner to keep your plan active.';
+            } else if (status === 'cancelled') {
+                msg = '<i class="fas fa-info-circle"></i> Your subscription is cancelled and will not auto-renew. You\u2019ll keep access until ' + (expires ? fmtDate(expires) : 'the end of the current period') + '.';
+            } else if (status === 'refunded') {
+                msg = '<i class="fas fa-undo"></i> This subscription was refunded. Access will end on ' + (expires ? fmtDate(expires) : 'the end of the current period') + '.';
+                tone = 'danger';
+            }
+            if (msg) {
+                alertEl.innerHTML = msg;
+                alertEl.style.display = 'block';
+                if (tone === 'danger') {
+                    alertEl.style.borderColor = 'rgba(255,80,80,0.4)';
+                    alertEl.style.background  = 'rgba(255,80,80,0.08)';
+                    alertEl.style.color       = '#FFB3B3';
+                }
+            } else {
+                alertEl.style.display = 'none';
+            }
+        }
+    }
 
     fetch('/api/me', { credentials: 'same-origin' })
         .then(function(r){ if (r.status === 401) { window.location.href = '/'; return null; } return r.json(); })
         .then(function(me){
             if (!me || !me.success) return;
             var serverPlan = me.data && me.data.plan;
-            if (serverPlan && TIER_CONFIG[serverPlan] && serverPlan !== currentPlan) {
-                /* Reload so tier-aware DOM rebuilds cleanly */
-                window.__ccPlan = serverPlan;
-                window.location.reload();
+            if (serverPlan && TIER_CONFIG[serverPlan]) {
+                try { sessionStorage.setItem('cc_plan', serverPlan); } catch (_) {}
+                if (serverPlan !== currentPlan) {
+                    /* Reload so tier-aware DOM rebuilds cleanly with cached plan */
+                    window.location.reload();
+                    return;
+                }
             }
+            renderBillingState(me);
         })
         .catch(function(){});
 
@@ -232,8 +291,64 @@ document.addEventListener('DOMContentLoaded', function() {
         home: 'Dashboard', accounts: 'Connected Pages', replies: 'AI Replies',
         leadcapture: 'Lead Capture', dm: 'Auto-DM Sequences', analytics: 'Analytics',
         leads: 'Lead Scoring AI', multiteam: 'Multi-Team Access',
-        usage: 'Usage', profile: 'Profile Settings', billing: 'Billing & Plan'
+        usage: 'Usage', tutorials: 'Watch Tutorials',
+        profile: 'Profile Settings', billing: 'Billing & Plan'
     };
+
+    /* ── Watch Tutorials: track completion in localStorage ── */
+    var WATCHED_KEY = 'cc_watched_tutorials';
+    function loadWatched() {
+        try {
+            var raw = localStorage.getItem(WATCHED_KEY);
+            if (!raw) return {};
+            var parsed = JSON.parse(raw);
+            return (parsed && typeof parsed === 'object') ? parsed : {};
+        } catch (_) { return {}; }
+    }
+    function saveWatched(map) {
+        try { localStorage.setItem(WATCHED_KEY, JSON.stringify(map)); } catch (_) {}
+    }
+    function refreshTutorialsProgress() {
+        var cards = document.querySelectorAll('.ud-tutorial-card');
+        if (!cards.length) return;
+        var done = document.querySelectorAll('.ud-tutorial-card.is-watched').length;
+        var total = cards.length;
+        var label = document.getElementById('udTutorialsProgressLabel');
+        var fill = document.getElementById('udTutorialsProgressFill');
+        if (label) label.textContent = done + ' of ' + total + ' watched';
+        if (fill) fill.style.width = Math.round((done / total) * 100) + '%';
+    }
+    function markTutorialWatched(card) {
+        if (!card || card.classList.contains('is-watched')) return;
+        card.classList.add('is-watched');
+        var id = card.getAttribute('data-tutorial-id');
+        if (!id) return;
+        var map = loadWatched();
+        map[id] = Date.now();
+        saveWatched(map);
+        refreshTutorialsProgress();
+    }
+    (function initTutorials() {
+        var cards = document.querySelectorAll('.ud-tutorial-card');
+        if (!cards.length) return;
+        var watched = loadWatched();
+        cards.forEach(function(card) {
+            var id = card.getAttribute('data-tutorial-id');
+            if (id && watched[id]) card.classList.add('is-watched');
+            var video = card.querySelector('video');
+            if (video) {
+                video.addEventListener('ended', function() { markTutorialWatched(card); });
+                /* Also mark watched if the user scrubs to ≥95% — long videos
+                   may not always fire 'ended' if the user pauses near the end. */
+                video.addEventListener('timeupdate', function() {
+                    if (video.duration && (video.currentTime / video.duration) >= 0.95) {
+                        markTutorialWatched(card);
+                    }
+                });
+            }
+        });
+        refreshTutorialsProgress();
+    })();
 
     document.querySelectorAll('.ud-nav-link[data-page]').forEach(function(link) {
         link.addEventListener('click', function(e) {
