@@ -2794,6 +2794,69 @@ ${urls.map(u => `  <url>
 
     /* Public landing-page AI demo (real OpenAI calls, strict rate-limit + length cap) */
     if (req.method === 'POST' && urlPath === '/api/demo-chat') {
+        /* helper: fetch URL → strip HTML → return up to 4KB of visible text. SSRF-safe (https only, public hosts). */
+        async function fetchPageText(targetUrl, maxRedirects) {
+            return await new Promise((resolve, reject) => {
+                let u;
+                try { u = new URL(targetUrl); } catch { return resolve(''); }
+                if (u.protocol !== 'https:' && u.protocol !== 'http:') return resolve('');
+                /* SSRF guard: block private / link-local / localhost host literals */
+                const host = u.hostname.toLowerCase();
+                if (host === 'localhost' || host.endsWith('.local') || host.endsWith('.internal') ||
+                    /^(10\.|127\.|169\.254\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[01])\.)/.test(host) ||
+                    /^::1$|^fc|^fd|^fe80/.test(host)) return resolve('');
+                const lib = u.protocol === 'https:' ? https : require('http');
+                const req2 = lib.request({
+                    method: 'GET',
+                    hostname: u.hostname,
+                    port: u.port || (u.protocol === 'https:' ? 443 : 80),
+                    path: u.pathname + (u.search || ''),
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (CommentCustomerBot/1.0)',
+                        'Accept': 'text/html,application/xhtml+xml',
+                        'Accept-Language': 'en-US,en;q=0.9',
+                    },
+                    timeout: 6000,
+                }, (rr) => {
+                    if ([301, 302, 303, 307, 308].includes(rr.statusCode) && rr.headers.location && maxRedirects > 0) {
+                        const next = new URL(rr.headers.location, targetUrl).toString();
+                        rr.resume();
+                        return resolve(fetchPageText(next, maxRedirects - 1));
+                    }
+                    const ctype = String(rr.headers['content-type'] || '');
+                    if (!/text\/html|application\/xhtml/i.test(ctype)) { rr.resume(); return resolve(''); }
+                    let chunks = [], total = 0, killed = false;
+                    rr.on('data', c => {
+                        if (killed) return;
+                        total += c.length;
+                        if (total > 250_000) { killed = true; rr.destroy(); }
+                        else chunks.push(c);
+                    });
+                    rr.on('end', () => {
+                        let html = Buffer.concat(chunks).toString('utf8');
+                        html = html.replace(/<script[\s\S]*?<\/script>/gi, ' ')
+                                   .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+                                   .replace(/<noscript[\s\S]*?<\/noscript>/gi, ' ')
+                                   .replace(/<!--[\s\S]*?-->/g, ' ')
+                                   .replace(/<[^>]+>/g, ' ')
+                                   .replace(/&nbsp;/g, ' ')
+                                   .replace(/&amp;/g, '&')
+                                   .replace(/&lt;/g, '<')
+                                   .replace(/&gt;/g, '>')
+                                   .replace(/&quot;/g, '"')
+                                   .replace(/&#39;/g, "'")
+                                   .replace(/\s+/g, ' ')
+                                   .trim();
+                        resolve(html.slice(0, 4000));
+                    });
+                    rr.on('error', () => resolve(''));
+                });
+                req2.on('error', err => reject(err));
+                req2.on('timeout', () => { req2.destroy(new Error('page_fetch_timeout')); });
+                req2.end();
+            });
+        }
+
         const apiKey = process.env.OPENAI_API_KEY;
         if (!apiKey) return sendJson(res, 503, { ok: false, error: 'ai_not_configured' });
         if (!await pgBump('demo_chat_min', ip, 60, 4))  return sendJson(res, 429, { ok: false, error: 'rate_limited', message: 'Please slow down — try again in a minute.' });
@@ -2808,9 +2871,23 @@ ${urls.map(u => `  <url>
         if (!message)          return sendJson(res, 400, { ok: false, error: 'empty_message' });
         if (message.length>500) return sendJson(res, 400, { ok: false, error: 'message_too_long' });
 
+        /* Optional: fetch URL mentioned in the message so AI can quote real prices/info */
+        let pageContext = '';
+        const urlMatch = message.match(/\b((?:https?:\/\/|www\.)[^\s<>"']+|[a-z0-9-]+\.(?:com|net|org|io|co|ai|shop|store|me|dev)(?:\/[^\s<>"']*)?)/i);
+        if (urlMatch) {
+            let target = urlMatch[1];
+            if (!/^https?:\/\//i.test(target)) target = 'https://' + target;
+            try {
+                const fetched = await fetchPageText(target, 3);
+                if (fetched) pageContext = `\n\nThe customer referenced this URL: ${target}\nHere is the visible text content of that page (truncated):\n"""\n${fetched}\n"""\nUse this content to answer accurately about specific products, prices, or details from this page. If the answer isn't on the page, say so politely.`;
+            } catch (e) {
+                logCtx(ctx, 'warn', 'demo_chat_url_fetch_failed', { url: target, msg: e.message });
+            }
+        }
+
         const systemPrompt = demo === 1
-            ? "You are an AI customer-service agent for a business that sells products through Instagram/Facebook comments. Reply as if responding to a real customer comment, in a warm, concise, professional tone (max 2 sentences). Adapt to whatever product or industry the customer mentions (candy, clothing, services, etc). Mention shipping/delivery, pricing, or how to order naturally if relevant. Never say you're an AI."
-            : "You are an AI sales-lead qualifier. Reply to the customer warmly in max 2 sentences. Capture buying intent. Then internally rate their lead score 0-100 based on purchase intent signals (asking price, asking how to buy, mentioning urgency, etc). Reply STRICTLY in this format on two lines:\nREPLY: <your 1-2 sentence reply>\nSCORE: <integer 0-100>";
+            ? "You are an AI customer-service agent for a business that sells products through Instagram/Facebook comments. Reply as if responding to a real customer comment, in a warm, concise, professional tone (max 2 sentences). Adapt to whatever product or industry the customer mentions (candy, clothing, services, etc). Mention shipping/delivery, pricing, or how to order naturally if relevant. If the customer references a URL and page content is provided below, use that real content to answer accurately — quote actual prices/names from the page rather than guessing. Never say you're an AI." + pageContext
+            : "You are an AI sales-lead qualifier. Reply to the customer warmly in max 2 sentences. Capture buying intent. If the customer references a URL and page content is provided below, use that real content to answer accurately. Then internally rate their lead score 0-100 based on purchase intent signals (asking price, asking how to buy, mentioning urgency, etc). Reply STRICTLY in this format on two lines:\nREPLY: <your 1-2 sentence reply>\nSCORE: <integer 0-100>" + pageContext;
 
         const reqBody = JSON.stringify({
             model: 'gpt-4o-mini',
@@ -2818,7 +2895,7 @@ ${urls.map(u => `  <url>
                 { role: 'system', content: systemPrompt },
                 { role: 'user',   content: message },
             ],
-            max_tokens: 150,
+            max_tokens: 200,
             temperature: 0.7,
         });
 
