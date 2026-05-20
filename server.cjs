@@ -46,7 +46,7 @@ const PUBLIC_URL = process.env.PUBLIC_URL || `http://localhost:${PORT}`;
 
 const STRIPE_KEY        = process.env.STRIPE_SECRET_KEY || '';
 /* Smarthinkerz Tap proxy — no API key needed, all Tap comms server-side at Smarthinkerz */
-const SMARTHINKERZ_PROXY = process.env.SMARTHINKERZ_PROXY || 'https://smarthinkerz.replit.app/api/checkout';
+const SMARTHINKERZ_PROXY = process.env.SMARTHINKERZ_PROXY || 'https://smarthinkerz.com/api/checkout';
 /* HMAC secret used by Smarthinkerz to sign partner webhook payloads (optional in dev) */
 const SMARTHINKERZ_WH_SECRET = process.env.SMARTHINKERZ_WEBHOOK_SECRET || '';
 /* internal-plan → Smarthinkerz plan slug map */
@@ -1477,7 +1477,10 @@ function buildCheckoutContent(plan, planKey, email, csrfToken) {
     <input type="hidden" id="checkoutPlan"  value="${safeKey}">
     <input type="hidden" id="checkoutCsrf"  value="${safeCsrf}">
     <div class="fg"><label>Full Name</label><input type="text" id="payerName" placeholder="As it appears on your card" value="${userName}" maxlength="120" required data-testid="input-payer-name"></div>
-    <div class="fg"><label>Phone (with country code)</label><input type="tel" id="payerPhone" placeholder="+96599887766" maxlength="32" required data-testid="input-payer-phone"></div>
+    <div class="fg-row">
+      <div class="fg"><label>Country Code</label><input type="tel" id="payerPhoneCode" placeholder="968" maxlength="4" required data-testid="input-payer-phone-code"></div>
+      <div class="fg"><label>Phone Number</label><input type="tel" id="payerPhoneNumber" placeholder="99887766" maxlength="15" required data-testid="input-payer-phone-number"></div>
+    </div>
     <button type="submit" class="pay-btn" id="checkoutSubmitBtn" data-testid="btn-checkout-pay"><i class="fas fa-lock"></i> Continue to Tap — ${escapeHtml(plan.price)}${escapeHtml(plan.period)}</button>
     <div class="co-msg" id="checkoutMsg"></div>
     <div class="sec-badges"><div class="sec-badge"><i class="fas fa-shield-alt"></i> SSL Encrypted</div><div class="sec-badge"><i class="fas fa-credit-card"></i> Powered by Tap Payments</div><div class="sec-badge"><i class="fas fa-undo"></i> Cancel Anytime</div></div>
@@ -1493,20 +1496,23 @@ function buildCheckoutContent(plan, planKey, email, csrfToken) {
     e.preventDefault();
     var em = document.getElementById('checkoutEmail').value.trim();
     var nm = document.getElementById('payerName').value.trim();
-    var ph = document.getElementById('payerPhone').value.trim();
+    var pc = document.getElementById('payerPhoneCode').value.replace(/\\D/g,'');
+    var pn = document.getElementById('payerPhoneNumber').value.replace(/\\D/g,'');
     if (!em || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(em)) { msg.textContent='Please enter a valid email address.'; msg.style.color='#ef4444'; msg.style.display='block'; return; }
     if (!nm) { msg.textContent='Please enter your full name.'; msg.style.color='#ef4444'; msg.style.display='block'; return; }
-    if (!/^\\+\\d{6,15}$/.test(ph)) { msg.textContent='Phone must include country code, e.g. +96599887766.'; msg.style.color='#ef4444'; msg.style.display='block'; return; }
+    if (!/^\\d{1,4}$/.test(pc)) { msg.textContent='Country code: 1–4 digits, e.g. 968.'; msg.style.color='#ef4444'; msg.style.display='block'; return; }
+    if (!/^\\d{6,15}$/.test(pn)) { msg.textContent='Phone number: 6–15 digits.'; msg.style.color='#ef4444'; msg.style.display='block'; return; }
     btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Redirecting to Tap...'; msg.style.display = 'none';
     fetch('/api/ajax', {
       method:'POST', credentials:'same-origin',
       headers:{'Content-Type':'application/x-www-form-urlencoded','X-CSRF-Token': document.getElementById('checkoutCsrf').value},
       body: new URLSearchParams({
         action:'cc_checkout',
-        email: document.getElementById('checkoutEmail').value,
+        email: em,
         plan:  document.getElementById('checkoutPlan').value,
         name:  nm,
-        phone: ph
+        phoneCode:   pc,
+        phoneNumber: pn
       }).toString()
     })
     .then(function(r){return r.json();})
@@ -2045,10 +2051,11 @@ function smarthinkerzCreateCheckout(formObj) {
 
 async function handleCheckout(session, body, ip) {
     const { errors, value } = validate({
-        email: { email: true, maxLength: 200, lower: true },
-        plan:  { enum: ['starter','growth','pro'] },
-        name:  { maxLength: 120, optional: true },
-        phone: { maxLength: 32,  optional: true },
+        email:       { email: true, maxLength: 200, lower: true },
+        plan:        { enum: ['starter','growth','pro'] },
+        name:        { maxLength: 120, optional: true },
+        phoneCode:   { maxLength: 6,   optional: true },
+        phoneNumber: { maxLength: 20,  optional: true },
     }, body);
     if (errors.length) return { code: 400, body: { success: false, data: { message: 'Invalid payment details.' } } };
     /* If logged in, enforce email match. Anonymous visitors from /pricing use whatever email they type. */
@@ -2057,18 +2064,24 @@ async function handleCheckout(session, body, ip) {
         return { code: 403, body: { success: false, data: { message: 'Email mismatch.' } } };
     }
 
-    /* Resolve customer name + phone (form > existing row by email if any) */
+    /* Resolve customer name (form > existing row by email if any) */
     let existingName = '';
     try {
         const r = await pool.query('SELECT name FROM cc_users WHERE LOWER(email)=$1', [value.email]);
         if (r.rows[0]) existingName = r.rows[0].name || '';
     } catch (_) {}
-    const fullName = String(value.name || existingName || '').trim();
-    const phone    = String(value.phone || '').trim();
+    const fullName    = String(value.name || existingName || '').trim();
+    const phoneCode   = String(value.phoneCode   || '').replace(/\D/g, '');
+    const phoneNumber = String(value.phoneNumber || '').replace(/\D/g, '');
 
-    if (!fullName)        return { code: 400, body: { success: false, data: { message: 'Full name is required.' } } };
-    if (!/^\+\d{6,15}$/.test(phone))
-        return { code: 400, body: { success: false, data: { message: 'Phone must include country code, e.g. +96599887766.' } } };
+    if (!fullName) return { code: 400, body: { success: false, data: { message: 'Full name is required.' } } };
+    const nameParts = fullName.split(/\s+/);
+    const firstName = nameParts.shift();
+    const lastName  = nameParts.join(' ') || firstName;
+    if (!/^\d{1,4}$/.test(phoneCode))
+        return { code: 400, body: { success: false, data: { message: 'Country code is required (digits only, e.g. 968).' } } };
+    if (!/^\d{6,15}$/.test(phoneNumber))
+        return { code: 400, body: { success: false, data: { message: 'Phone number must be 6–15 digits.' } } };
 
     const slug = SMARTHINKERZ_PLAN_MAP[value.plan];
     if (!slug) return { code: 400, body: { success: false, data: { message: 'Unknown plan.' } } };
@@ -2076,11 +2089,13 @@ async function handleCheckout(session, body, ip) {
     /* Smarthinkerz Tap proxy — primary path */
     try {
         const r = await smarthinkerzCreateCheckout({
-            plan:  slug,
-            cycle: 'monthly',
-            name:  fullName,
-            email: value.email,
-            phone: phone,
+            plan:        slug,
+            cycle:       'monthly',
+            firstName:   firstName,
+            lastName:    lastName,
+            email:       value.email,
+            phoneCode:   phoneCode,
+            phoneNumber: phoneNumber,
         });
 
         /* Validation error from Smarthinkerz */
