@@ -2792,6 +2792,78 @@ ${urls.map(u => `  <url>
         }
     }
 
+    /* Public landing-page AI demo (real OpenAI calls, strict rate-limit + length cap) */
+    if (req.method === 'POST' && urlPath === '/api/demo-chat') {
+        const apiKey = process.env.OPENAI_API_KEY;
+        if (!apiKey) return sendJson(res, 503, { ok: false, error: 'ai_not_configured' });
+        if (!await pgBump('demo_chat_min', ip, 60, 4))  return sendJson(res, 429, { ok: false, error: 'rate_limited', message: 'Please slow down — try again in a minute.' });
+        if (!await pgBump('demo_chat_hr',  ip, 3600, 20)) return sendJson(res, 429, { ok: false, error: 'rate_limited', message: 'Demo limit reached for this hour. Sign up for unlimited replies.' });
+        let body = {};
+        try {
+            const raw = await parseBody(req, true);
+            if (raw && raw.length) body = JSON.parse(raw.toString('utf8'));
+        } catch (_) { return sendJson(res, 400, { ok: false, error: 'bad_body' }); }
+        const message = String(body && body.message || '').trim();
+        const demo    = (body && (body.demo === 2 || body.demo === '2')) ? 2 : 1;
+        if (!message)          return sendJson(res, 400, { ok: false, error: 'empty_message' });
+        if (message.length>500) return sendJson(res, 400, { ok: false, error: 'message_too_long' });
+
+        const systemPrompt = demo === 1
+            ? "You are an AI customer-service agent for a business that sells products through Instagram/Facebook comments. Reply as if responding to a real customer comment, in a warm, concise, professional tone (max 2 sentences). Adapt to whatever product or industry the customer mentions (candy, clothing, services, etc). Mention shipping/delivery, pricing, or how to order naturally if relevant. Never say you're an AI."
+            : "You are an AI sales-lead qualifier. Reply to the customer warmly in max 2 sentences. Capture buying intent. Then internally rate their lead score 0-100 based on purchase intent signals (asking price, asking how to buy, mentioning urgency, etc). Reply STRICTLY in this format on two lines:\nREPLY: <your 1-2 sentence reply>\nSCORE: <integer 0-100>";
+
+        const reqBody = JSON.stringify({
+            model: 'gpt-4o-mini',
+            messages: [
+                { role: 'system', content: systemPrompt },
+                { role: 'user',   content: message },
+            ],
+            max_tokens: 150,
+            temperature: 0.7,
+        });
+
+        try {
+            const aiResp = await new Promise((resolve, reject) => {
+                const r2 = https.request({
+                    method: 'POST',
+                    hostname: 'api.openai.com',
+                    path: '/v1/chat/completions',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Content-Length': Buffer.byteLength(reqBody),
+                        'Authorization': 'Bearer ' + apiKey,
+                    },
+                    timeout: 15000,
+                }, (rr) => {
+                    let chunks = [];
+                    rr.on('data', c => chunks.push(c));
+                    rr.on('end', () => resolve({ status: rr.statusCode, body: Buffer.concat(chunks).toString() }));
+                });
+                r2.on('error', reject);
+                r2.on('timeout', () => { r2.destroy(new Error('openai_timeout')); });
+                r2.write(reqBody);
+                r2.end();
+            });
+            if (aiResp.status !== 200) {
+                logCtx(ctx, 'error', 'demo_chat_openai_err', { status: aiResp.status, body: aiResp.body.slice(0, 300) });
+                return sendJson(res, 502, { ok: false, error: 'ai_upstream_error' });
+            }
+            const j = JSON.parse(aiResp.body);
+            let content = (j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content || '').trim();
+            let score = null;
+            if (demo === 2) {
+                const replyM = content.match(/REPLY:\s*([\s\S]*?)(?:\nSCORE:|$)/i);
+                const scoreM = content.match(/SCORE:\s*(\d{1,3})/i);
+                if (replyM) content = replyM[1].trim();
+                if (scoreM) score = Math.max(0, Math.min(100, parseInt(scoreM[1], 10)));
+            }
+            return sendJson(res, 200, { ok: true, reply: content, score: score });
+        } catch (err) {
+            logCtx(ctx, 'error', 'demo_chat_failed', { msg: err.message });
+            return sendJson(res, 502, { ok: false, error: 'ai_request_failed' });
+        }
+    }
+
     /* SmarThinkerz partner webhook (spec-conformant: purchase.completed → provision) */
     if (req.method === 'POST' && urlPath === '/api/webhooks/smarthinkerz') {
         const raw = await parseBody(req, true);

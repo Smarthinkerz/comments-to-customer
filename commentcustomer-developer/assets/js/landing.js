@@ -309,47 +309,49 @@ document.addEventListener('DOMContentLoaded', function() {
 
             chatArea.scrollTop = chatArea.scrollHeight;
 
-            var responses;
-            if (demoType === 'price') {
-                responses = [
-                    "Great question! We'd love to help. Could you tell us which product or plan you're interested in? We have Starter ($29/mo), Growth ($79/mo), and Pro ($149/mo) tiers.",
-                    "Thanks for your interest! Our pricing starts at $29/month for the Starter plan. What specific features are you looking for?",
-                    "I'd be happy to help with pricing! For the best recommendation, could you share what size business you're running?"
-                ];
-            } else {
-                responses = [
-                    "We serve businesses globally with our cloud-based platform. No physical delivery needed - setup takes just 5 minutes!",
-                    "Great question! Our platform is available worldwide. Since it's cloud-based, you can start using it immediately from anywhere.",
-                    "We're available in your area! Our SaaS platform works from any location. Would you like to start a free trial?"
-                ];
-            }
+            function escapeHtml(s) { return String(s).replace(/[&<>"']/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]; }); }
 
-            setTimeout(function() {
-                var response = responses[Math.floor(Math.random() * responses.length)];
-                aiMsg.innerHTML = '<div class="ai-avatar"><i class="fas fa-robot"></i></div><span>' + response + '</span>';
+            fetch('/api/demo-chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: message, demo: demoNum })
+            })
+            .then(function(r) { return r.json().then(function(j){ return { status: r.status, body: j }; }); })
+            .then(function(out) {
+                var j = out.body || {};
+                var reply;
+                if (out.status === 200 && j.ok && j.reply) {
+                    reply = j.reply;
+                } else if (out.status === 429) {
+                    reply = j.message || 'Demo limit reached. Sign up for unlimited replies.';
+                } else {
+                    reply = "Sorry, I'm having trouble responding right now. Please try again in a moment.";
+                }
+                aiMsg.innerHTML = '<div class="ai-avatar"><i class="fas fa-robot"></i></div><span>' + escapeHtml(reply) + '</span>';
                 chatArea.scrollTop = chatArea.scrollHeight;
 
                 count--;
                 countEl.textContent = count;
 
-                if (demoNum === 2) {
+                if (demoNum === 2 && typeof j.score === 'number') {
                     var scoringEl = document.getElementById('demo-scoring-2');
-                    var fillEl = document.getElementById('scoring-fill-2');
-                    var valueEl = document.getElementById('score-value-2');
+                    var fillEl    = document.getElementById('scoring-fill-2');
+                    var valueEl   = document.getElementById('score-value-2');
                     if (scoringEl) {
                         scoringEl.style.display = '';
-                        var score = Math.floor(Math.random() * 20) + 78;
-                        fillEl.style.width = score + '%';
-                        valueEl.textContent = score;
+                        fillEl.style.width = j.score + '%';
+                        valueEl.textContent = j.score;
                     }
                 }
 
                 if (count <= 0 && overlay) {
-                    setTimeout(function() {
-                        overlay.style.display = 'flex';
-                    }, 500);
+                    setTimeout(function() { overlay.style.display = 'flex'; }, 500);
                 }
-            }, 1500);
+            })
+            .catch(function() {
+                aiMsg.innerHTML = '<div class="ai-avatar"><i class="fas fa-robot"></i></div><span>Connection error. Please try again.</span>';
+                chatArea.scrollTop = chatArea.scrollHeight;
+            });
         }
 
         submitBtn.addEventListener('click', sendMessage);
