@@ -4,13 +4,13 @@
   "description": "Automate Comments. Capture Leads. Grow Your Business.",
   "icons": [
     {
-      "src": "/wp-content/themes/commentcustomer-developer/assets/images/android-chrome-192x192.png",
+      "src": "/assets/images/android-chrome-192x192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "/wp-content/themes/commentcustomer-developer/assets/images/android-chrome-512x512.png",
+      "src": "/assets/images/android-chrome-512x512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
