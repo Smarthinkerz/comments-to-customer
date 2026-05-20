@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "buildCommand": "bash scripts/vercel-build.sh",
+  "buildCommand": "mkdir -p dist/assets/videos && cp -r commentcustomer-developer/assets/css commentcustomer-developer/assets/js commentcustomer-developer/assets/images dist/assets/ && cp commentcustomer-developer/assets/videos/*.mp4 dist/assets/videos/ || true",
   "installCommand": "npm install --omit=dev --no-audit --no-fund --ignore-scripts",
   "outputDirectory": "dist",
   "framework": null,
