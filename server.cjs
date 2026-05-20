@@ -2816,7 +2816,7 @@ ${urls.map(u => `  <url>
                         'Accept': 'text/html,application/xhtml+xml',
                         'Accept-Language': 'en-US,en;q=0.9',
                     },
-                    timeout: 6000,
+                    timeout: 3500,
                 }, (rr) => {
                     if ([301, 302, 303, 307, 308].includes(rr.statusCode) && rr.headers.location && maxRedirects > 0) {
                         const next = new URL(rr.headers.location, targetUrl).toString();
@@ -2878,8 +2878,13 @@ ${urls.map(u => `  <url>
             let target = urlMatch[1];
             if (!/^https?:\/\//i.test(target)) target = 'https://' + target;
             try {
-                const fetched = await fetchPageText(target, 3);
+                /* Hard 4s ceiling so we never blow Vercel's 10s function budget — fall back to plain AI if slow/blocked */
+                const fetched = await Promise.race([
+                    fetchPageText(target, 2),
+                    new Promise(r => setTimeout(() => r(''), 4000)),
+                ]);
                 if (fetched) pageContext = `\n\nThe customer referenced this URL: ${target}\nHere is the visible text content of that page (truncated):\n"""\n${fetched}\n"""\nUse this content to answer accurately about specific products, prices, or details from this page. If the answer isn't on the page, say so politely.`;
+                else logCtx(ctx, 'warn', 'demo_chat_url_fetch_empty', { url: target });
             } catch (e) {
                 logCtx(ctx, 'warn', 'demo_chat_url_fetch_failed', { url: target, msg: e.message });
             }
