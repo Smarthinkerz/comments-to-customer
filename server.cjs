@@ -25,7 +25,7 @@
  *  Hooks ready for external services (env-driven, off by default):
  *      STRIPE_SECRET_KEY        → real Stripe Checkout
  *      STRIPE_WEBHOOK_SECRET    → real webhook signature verification
- *      EMAIL_FROM + SMTP_*      → SMTP delivery (currently logs to console)
+ *      EMAIL_FROM + (SMTP_*|RESEND_API_KEY|SENDGRID_API_KEY) → real outbound mail
  *      TURNSTILE_SECRET_KEY     → Cloudflare Turnstile CAPTCHA
  *      REDIS_URL                → Redis-backed sessions/rate-limits
  * ========================================================================== */
@@ -63,6 +63,15 @@ const SMARTHINKERZ_SLUG_REVERSE = {
 };
 const STRIPE_WH_SECRET  = process.env.STRIPE_WEBHOOK_SECRET || '';
 const EMAIL_FROM        = process.env.EMAIL_FROM || '';
+const EMAIL_FROM_NAME   = process.env.EMAIL_FROM_NAME || 'CommentCustomer.ai';
+const EMAIL_REPLY_TO    = process.env.EMAIL_REPLY_TO || '';
+const SMTP_HOST         = process.env.SMTP_HOST || '';
+const SMTP_PORT         = parseInt(process.env.SMTP_PORT || '587', 10);
+const SMTP_USER         = process.env.SMTP_USER || '';
+const SMTP_PASS         = process.env.SMTP_PASS || '';
+const SMTP_SECURE       = String(process.env.SMTP_SECURE || '').toLowerCase() === 'true' || SMTP_PORT === 465;
+const RESEND_API_KEY    = process.env.RESEND_API_KEY || '';
+const SENDGRID_API_KEY  = process.env.SENDGRID_API_KEY || '';
 const TURNSTILE_SECRET  = process.env.TURNSTILE_SECRET_KEY || '';
 
 /* ───────────────────────── LOGGER ──────────────────────────── */
@@ -234,6 +243,7 @@ function ensureInit() {
         await pool.query(`ALTER TABLE cc_users ADD COLUMN IF NOT EXISTS failed_attempts INTEGER DEFAULT 0`);
         await pool.query(`ALTER TABLE cc_users ADD COLUMN IF NOT EXISTS locked_until TIMESTAMP`);
         await pool.query(`ALTER TABLE cc_users ADD COLUMN IF NOT EXISTS stripe_subscription_id VARCHAR(255)`);
+        await pool.query(`ALTER TABLE cc_users ADD COLUMN IF NOT EXISTS billing_status VARCHAR(20) DEFAULT 'active'`);
 
         /* Existing users grandfathered as verified */
         await pool.query(`UPDATE cc_users SET email_verified = TRUE WHERE email_verified IS NULL OR email_verified = FALSE`);
@@ -555,7 +565,7 @@ async function getSession(sid) {
     const r = await pool.query(
         `SELECT s.id, s.csrf_token, s.expires_at, s.last_activity,
                 u.id AS user_id, u.email, u.name, u.plan, u.role,
-                u.trial_ends, u.plan_expires, u.email_verified, u.totp_enabled
+                u.trial_ends, u.plan_expires, u.email_verified, u.totp_enabled, u.billing_status
          FROM cc_sessions s JOIN cc_users u ON u.id = s.user_id
          WHERE s.id=$1 AND s.expires_at > NOW()`, [sid]);
     const row = r.rows[0];
@@ -719,21 +729,347 @@ async function consumeEmailToken(token, purpose) {
     return r.rows[0].user_id;
 }
 
-/* ───────────────────────── EMAIL DELIVERY ─────────────────── */
-async function sendEmail(to, subject, body) {
-    /* Always queue to outbox for audit trail */
-    await pool.query(
-        `INSERT INTO cc_email_outbox (to_addr,subject,body,sent_at) VALUES ($1,$2,$3,$4)`,
-        [to, subject, body, EMAIL_FROM ? new Date() : null]
-    );
-    if (!EMAIL_FROM) {
-        /* No SMTP configured – log link to console so admins can copy-paste in dev */
-        log('info', 'email_not_sent_no_smtp', { to, subject, body });
+/* ───────────────────────── EMAIL DELIVERY ─────────────────── *
+ * Backwards-compatible signature:
+ *   sendEmail(to, subject, "plain text body")        — legacy callers
+ *   sendEmail(to, subject, { text, html, replyTo })  — branded HTML emails
+ *
+ * Delivery provider is chosen by env vars, in this order:
+ *   1. RESEND_API_KEY     → Resend HTTPS API   (no extra deps)
+ *   2. SENDGRID_API_KEY   → SendGrid HTTPS API (no extra deps)
+ *   3. SMTP_HOST + SMTP_USER + SMTP_PASS → SMTP via nodemailer
+ *      (works with Mailgun, SES SMTP, Postmark, Gmail App Password,
+ *       your own MTA, etc.)
+ *
+ * EMAIL_FROM is required for any real delivery — if blank, we still
+ * write to cc_email_outbox for the audit trail and log the link so a
+ * dev can copy-paste it.
+ */
+let _nodemailerTransport = null;
+function getSmtpTransport() {
+    if (_nodemailerTransport) return _nodemailerTransport;
+    if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS) return null;
+    let nodemailer;
+    try { nodemailer = require('nodemailer'); }
+    catch (e) {
+        log('error', 'email_nodemailer_missing', { msg: e.message });
+        return null;
+    }
+    _nodemailerTransport = nodemailer.createTransport({
+        host: SMTP_HOST,
+        port: SMTP_PORT,
+        secure: SMTP_SECURE,
+        auth: { user: SMTP_USER, pass: SMTP_PASS },
+    });
+    return _nodemailerTransport;
+}
+
+function htmlToText(html) {
+    return String(html)
+        .replace(/<style[\s\S]*?<\/style>/gi, '')
+        .replace(/<\/(p|div|tr|li|h[1-6])>/gi, '\n')
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<[^>]+>/g, '')
+        .replace(/&nbsp;/g, ' ')
+        .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+        .replace(/&quot;/g, '"').replace(/&#x27;/g, "'")
+        .replace(/[ \t]+\n/g, '\n')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+}
+
+function formatFromAddress() {
+    if (!EMAIL_FROM) return '';
+    return EMAIL_FROM_NAME
+        ? `${EMAIL_FROM_NAME} <${EMAIL_FROM}>`
+        : EMAIL_FROM;
+}
+
+async function deliverViaResend({ to, subject, text, html, replyTo }) {
+    const payload = {
+        from:    formatFromAddress(),
+        to:      [to],
+        subject,
+        text:    text || (html ? htmlToText(html) : ''),
+    };
+    if (html)              payload.html     = html;
+    if (replyTo || EMAIL_REPLY_TO) payload.reply_to = replyTo || EMAIL_REPLY_TO;
+
+    const res = await fetch('https://api.resend.com/emails', {
+        method:  'POST',
+        headers: {
+            'Authorization': `Bearer ${RESEND_API_KEY}`,
+            'Content-Type':  'application/json',
+        },
+        body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+        const errBody = await res.text().catch(() => '');
+        throw new Error(`resend_${res.status}: ${errBody.slice(0, 200)}`);
+    }
+    return 'resend';
+}
+
+async function deliverViaSendgrid({ to, subject, text, html, replyTo }) {
+    const content = [];
+    if (text) content.push({ type: 'text/plain', value: text });
+    if (html) content.push({ type: 'text/html',  value: html });
+    if (!content.length) content.push({ type: 'text/plain', value: '' });
+
+    const payload = {
+        personalizations: [{ to: [{ email: to }] }],
+        from:    { email: EMAIL_FROM, name: EMAIL_FROM_NAME || undefined },
+        subject,
+        content,
+    };
+    const ra = replyTo || EMAIL_REPLY_TO;
+    if (ra) payload.reply_to = { email: ra };
+
+    const res = await fetch('https://api.sendgrid.com/v3/mail/send', {
+        method:  'POST',
+        headers: {
+            'Authorization': `Bearer ${SENDGRID_API_KEY}`,
+            'Content-Type':  'application/json',
+        },
+        body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+        const errBody = await res.text().catch(() => '');
+        throw new Error(`sendgrid_${res.status}: ${errBody.slice(0, 200)}`);
+    }
+    return 'sendgrid';
+}
+
+async function deliverViaSmtp({ to, subject, text, html, replyTo }) {
+    const transport = getSmtpTransport();
+    if (!transport) throw new Error('smtp_not_configured');
+    const info = await transport.sendMail({
+        from:    formatFromAddress(),
+        to,
+        subject,
+        text:    text || (html ? htmlToText(html) : ''),
+        html:    html || undefined,
+        replyTo: replyTo || EMAIL_REPLY_TO || undefined,
+    });
+    return `smtp:${info.messageId || 'ok'}`;
+}
+
+async function sendEmail(to, subject, bodyOrOpts) {
+    /* Normalise legacy (string body) and new (object) call shapes */
+    let text = '', html = '', replyTo = '';
+    if (typeof bodyOrOpts === 'string') {
+        text = bodyOrOpts;
+    } else if (bodyOrOpts && typeof bodyOrOpts === 'object') {
+        text    = bodyOrOpts.text    || '';
+        html    = bodyOrOpts.html    || '';
+        replyTo = bodyOrOpts.replyTo || '';
+        if (!text && html) text = htmlToText(html);
+    }
+
+    /* Pick a delivery provider; null means "no real delivery configured" */
+    let provider = null;
+    if (EMAIL_FROM) {
+        if      (RESEND_API_KEY)                          provider = 'resend';
+        else if (SENDGRID_API_KEY)                        provider = 'sendgrid';
+        else if (SMTP_HOST && SMTP_USER && SMTP_PASS)     provider = 'smtp';
+    }
+
+    /* Audit-trail row in cc_email_outbox — body stores text+html marker */
+    const outboxBody = html
+        ? `${text}\n\n---HTML---\n${html}`
+        : text;
+    let outboxId = null;
+    try {
+        const r = await pool.query(
+            `INSERT INTO cc_email_outbox (to_addr,subject,body,sent_at)
+             VALUES ($1,$2,$3,$4) RETURNING id`,
+            [to, subject, outboxBody, null]
+        );
+        outboxId = r.rows[0].id;
+    } catch (e) {
+        log('error', 'email_outbox_insert_failed', { msg: e.message, to, subject });
+    }
+
+    if (!provider) {
+        log('info', 'email_not_sent_no_provider', {
+            to, subject, body: text, has_html: !!html,
+            hint: 'set EMAIL_FROM + one of RESEND_API_KEY / SENDGRID_API_KEY / SMTP_*',
+        });
+        counterInc('cc_email_sent_total', { provider: 'none', status: 'skipped' });
         return false;
     }
-    /* In production, plug SMTP/SendGrid/SES here */
-    log('info', 'email_sent', { to, subject });
-    return true;
+
+    try {
+        let result;
+        if      (provider === 'resend')   result = await deliverViaResend  ({ to, subject, text, html, replyTo });
+        else if (provider === 'sendgrid') result = await deliverViaSendgrid({ to, subject, text, html, replyTo });
+        else                              result = await deliverViaSmtp    ({ to, subject, text, html, replyTo });
+
+        if (outboxId != null) {
+            await pool.query(
+                `UPDATE cc_email_outbox SET sent_at=NOW() WHERE id=$1`,
+                [outboxId]
+            ).catch(() => {});
+        }
+        log('info', 'email_sent', { to, subject, provider, result });
+        counterInc('cc_email_sent_total', { provider, status: 'ok' });
+        return true;
+    } catch (e) {
+        log('error', 'email_send_failed', { to, subject, provider, msg: e.message });
+        counterInc('cc_email_sent_total', { provider, status: 'failed' });
+        return false;
+    }
+}
+
+/* ───────────── BRANDED HTML EMAIL TEMPLATES ───────────── *
+ * Inline-styled, table-based for maximum mail-client compatibility
+ * (Gmail / Outlook / Apple Mail strip <style> blocks and many CSS
+ *  properties; tables + inline styles are the proven fallback).
+ */
+function brandedEmailShell({ preheader, headline, bodyHtml, cta }) {
+    const safePre  = escapeHtml(preheader || '');
+    const safeHead = escapeHtml(headline   || '');
+    const ctaBlock = cta && cta.url && cta.label ? `
+      <tr><td align="center" style="padding:8px 0 24px 0;">
+        <a href="${escapeHtml(cta.url)}"
+           style="display:inline-block;background:#7c3aed;color:#ffffff;
+                  text-decoration:none;font-weight:600;font-size:15px;
+                  padding:14px 28px;border-radius:8px;
+                  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+          ${escapeHtml(cta.label)}
+        </a>
+      </td></tr>` : '';
+    const year = new Date().getFullYear();
+    return `<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${safeHead || 'CommentCustomer.ai'}</title></head>
+<body style="margin:0;padding:0;background:#f4f5f9;
+             font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+             color:#1a1f2e;">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">${safePre}</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+       style="background:#f4f5f9;padding:24px 0;">
+  <tr><td align="center">
+    <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0"
+           style="max-width:600px;width:100%;background:#ffffff;border-radius:12px;
+                  box-shadow:0 2px 8px rgba(20,27,45,0.06);overflow:hidden;">
+      <tr><td style="background:linear-gradient(135deg,#141B2D 0%,#1A1F35 50%,#2a1f55 100%);
+                     padding:28px 32px;text-align:left;">
+        <div style="font-size:20px;font-weight:700;color:#ffffff;letter-spacing:-0.2px;">
+          <span style="color:#a78bfa;">Comment</span>Customer<span style="color:#a78bfa;">.ai</span>
+        </div>
+        <div style="font-size:12px;color:#c7c9d3;margin-top:4px;">
+          AI-powered social comment automation
+        </div>
+      </td></tr>
+      <tr><td style="padding:32px;">
+        ${safeHead ? `<h1 style="margin:0 0 16px 0;font-size:22px;line-height:1.3;color:#141B2D;">${safeHead}</h1>` : ''}
+        <div style="font-size:15px;line-height:1.6;color:#3a4358;">
+          ${bodyHtml}
+        </div>
+      </td></tr>
+      ${ctaBlock}
+      <tr><td style="padding:0 32px 32px 32px;">
+        <hr style="border:none;border-top:1px solid #ececf1;margin:0 0 16px 0;">
+        <div style="font-size:12px;line-height:1.5;color:#8a8fa0;">
+          Need help? Reply to this email or reach us at
+          <a href="mailto:support@commentcustomer.ai"
+             style="color:#7c3aed;text-decoration:none;">support@commentcustomer.ai</a>.<br>
+          © ${year} CommentCustomer.ai · All rights reserved.
+        </div>
+      </td></tr>
+    </table>
+  </td></tr>
+</table>
+</body></html>`;
+}
+
+function welcomeEmailHtml({ name, planLabel, planFeatures, setPasswordUrl,
+                            orderId, amount, currency, isNewAccount }) {
+    const safeName  = escapeHtml(name || 'there');
+    const safePlan  = escapeHtml(planLabel);
+    const safeOrder = escapeHtml(orderId || '');
+    const amountLine = amount && currency
+        ? `<tr><td style="padding:6px 0;color:#8a8fa0;font-size:13px;">Amount</td>
+              <td style="padding:6px 0;text-align:right;font-size:13px;color:#1a1f2e;">
+                ${escapeHtml(String(amount))} ${escapeHtml(currency)}
+              </td></tr>`
+        : '';
+    const featureItems = (planFeatures || [])
+        .map(f => `<li style="margin:4px 0;">${escapeHtml(f)}</li>`)
+        .join('');
+
+    const intro = isNewAccount
+        ? `Thanks for your purchase — your <strong>${safePlan}</strong> plan is active and waiting for you.
+           To finish setting up your account, choose a password using the secure link below.
+           It's valid for 24 hours.`
+        : `Your CommentCustomer.ai plan has been updated to <strong>${safePlan}</strong>.
+           If you ever need to reset your password, you can use the secure link below
+           (valid for 24 hours).`;
+
+    const bodyHtml = `
+      <p style="margin:0 0 16px 0;">Hi ${safeName},</p>
+      <p style="margin:0 0 20px 0;">${intro}</p>
+
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+             style="background:#f8f7fc;border:1px solid #ece9f7;border-radius:8px;
+                    padding:16px 20px;margin:0 0 20px 0;">
+        <tr><td style="font-size:13px;color:#8a8fa0;padding-bottom:6px;">Your plan</td></tr>
+        <tr><td style="font-size:18px;font-weight:600;color:#7c3aed;padding-bottom:10px;">
+          ${safePlan}
+        </td></tr>
+        ${featureItems ? `<tr><td>
+          <ul style="margin:0;padding-left:18px;font-size:14px;color:#3a4358;">
+            ${featureItems}
+          </ul>
+        </td></tr>` : ''}
+      </table>
+
+      ${safeOrder ? `
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+             style="margin:0 0 24px 0;">
+        <tr><td style="padding:6px 0;color:#8a8fa0;font-size:13px;">Order reference</td>
+            <td style="padding:6px 0;text-align:right;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+                       font-size:13px;color:#1a1f2e;">${safeOrder}</td></tr>
+        ${amountLine}
+      </table>` : ''}
+
+      <p style="margin:0 0 8px 0;font-size:13px;color:#8a8fa0;">
+        If the button below doesn't work, copy and paste this link into your browser:<br>
+        <span style="word-break:break-all;color:#7c3aed;">${escapeHtml(setPasswordUrl)}</span>
+      </p>
+    `;
+
+    return brandedEmailShell({
+        preheader: isNewAccount
+            ? `Set your password and start using your ${planLabel} plan.`
+            : `Your plan is now ${planLabel}.`,
+        headline:  isNewAccount
+            ? `Welcome to CommentCustomer.ai`
+            : `Your plan was updated`,
+        bodyHtml,
+        cta: {
+            label: isNewAccount ? 'Set your password' : 'Reset your password',
+            url:   setPasswordUrl,
+        },
+    });
+}
+
+function simpleLinkEmailHtml({ headline, intro, ctaLabel, ctaUrl, footerNote }) {
+    const bodyHtml = `
+      <p style="margin:0 0 16px 0;">${intro}</p>
+      <p style="margin:24px 0 8px 0;font-size:13px;color:#8a8fa0;">
+        If the button doesn't work, paste this link into your browser:<br>
+        <span style="word-break:break-all;color:#7c3aed;">${escapeHtml(ctaUrl)}</span>
+      </p>
+      ${footerNote ? `<p style="margin:16px 0 0 0;font-size:13px;color:#8a8fa0;">${footerNote}</p>` : ''}
+    `;
+    return brandedEmailShell({
+        preheader: headline,
+        headline,
+        bodyHtml,
+        cta: { label: ctaLabel, url: ctaUrl },
+    });
 }
 
 /* ───────────────────────── PLANS + ESCAPE ─────────────────── */
@@ -1063,6 +1399,17 @@ async function runMaintenanceOnce() {
     try { await pool.query(`DELETE FROM cc_event_outbox WHERE status='done' AND created_at < NOW() - INTERVAL '7 days'`); } catch (_) {}
     try { await pool.query(`DELETE FROM cc_sessions     WHERE expires_at  < NOW()`); } catch (_) {}
     try { await pool.query(`DELETE FROM cc_email_tokens WHERE expires_at  < NOW()`); } catch (_) {}
+    /* Partner-cancelled / refunded subscriptions: downgrade to 'pending' once the paid period actually ends. */
+    try {
+        await pool.query(`
+            UPDATE cc_users
+               SET plan='pending', plan_expires=NULL
+             WHERE billing_status IN ('cancelled','refunded')
+               AND plan IN ('starter','growth','pro')
+               AND plan_expires IS NOT NULL
+               AND plan_expires < NOW()
+        `);
+    } catch (_) {}
 }
 function startMaintenanceJobs() {
     setInterval(runMaintenanceOnce, 5 * 60 * 1000);
@@ -1415,8 +1762,19 @@ async function handleRegister(body, ip, ua) {
         );
         const uid = ins.rows[0].id;
         const tok = await createEmailToken(uid, 'verify', 24 * 3600 * 1000);
-        await sendEmail(value.email, 'Verify your CommentCustomer.ai email',
-            `Welcome ${value.name}!\n\nClick the link below to verify your email and activate your trial:\n${PUBLIC_URL}/verify-email?token=${tok}\n\nThis link expires in 24 hours.`);
+        {
+            const verifyUrl = `${PUBLIC_URL}/verify-email?token=${tok}`;
+            await sendEmail(value.email, 'Verify your CommentCustomer.ai email', {
+                text: `Welcome ${value.name}!\n\nClick the link below to verify your email and activate your trial:\n${verifyUrl}\n\nThis link expires in 24 hours.`,
+                html: simpleLinkEmailHtml({
+                    headline: 'Verify your email',
+                    intro: `Welcome, ${escapeHtml(value.name)}! Click the button below to verify your email and activate your free trial.`,
+                    ctaLabel: 'Verify my email',
+                    ctaUrl: verifyUrl,
+                    footerNote: 'This link expires in 24 hours.',
+                }),
+            });
+        }
         const sess = await createSession(uid, ip, ua);
         log('info', 'user_registered', { email: value.email, plan: 'trial' });
         await eventEmit('user.registered', { userId: uid, email: value.email, plan: 'trial' }, { ip });
@@ -1432,8 +1790,19 @@ async function handleRegister(body, ip, ua) {
             [value.name, value.email, phash]
         );
         const tok = await createEmailToken(ins.rows[0].id, 'verify', 24 * 3600 * 1000);
-        await sendEmail(value.email, 'Verify your CommentCustomer.ai email',
-            `Welcome!\n\nClick to verify: ${PUBLIC_URL}/verify-email?token=${tok}\n\nAfter verification, complete your payment to activate your account.`);
+        {
+            const verifyUrl = `${PUBLIC_URL}/verify-email?token=${tok}`;
+            await sendEmail(value.email, 'Verify your CommentCustomer.ai email', {
+                text: `Welcome!\n\nClick to verify: ${verifyUrl}\n\nAfter verification, complete your payment to activate your account.`,
+                html: simpleLinkEmailHtml({
+                    headline: 'Verify your email',
+                    intro: 'Welcome! Click the button below to verify your email. After verification, complete your payment to activate your account.',
+                    ctaLabel: 'Verify my email',
+                    ctaUrl: verifyUrl,
+                    footerNote: 'This link expires in 24 hours.',
+                }),
+            });
+        }
         log('info', 'user_registered', { email: value.email, plan: 'pending' });
         return { code: 200, body: { success: true, data: {
             redirect: `/checkout/?plan=${encodeURIComponent(userPlan)}&email=${encodeURIComponent(value.email)}`
@@ -1594,8 +1963,19 @@ async function handleRequestPasswordReset(body) {
     const r = await pool.query(`SELECT id,name FROM cc_users WHERE email=$1`, [value.email]);
     if (r.rows[0]) {
         const tok = await createEmailToken(r.rows[0].id, 'reset', 15 * 60 * 1000);
-        await sendEmail(value.email, 'Reset your CommentCustomer.ai password',
-            `Hi ${r.rows[0].name},\n\nClick to reset your password (valid 15 min):\n${PUBLIC_URL}/reset-password?token=${tok}\n\nIf you did not request this, ignore this email.`);
+        {
+            const resetUrl = `${PUBLIC_URL}/reset-password?token=${tok}`;
+            await sendEmail(value.email, 'Reset your CommentCustomer.ai password', {
+                text: `Hi ${r.rows[0].name},\n\nClick to reset your password (valid 15 min):\n${resetUrl}\n\nIf you did not request this, ignore this email.`,
+                html: simpleLinkEmailHtml({
+                    headline: 'Reset your password',
+                    intro: `Hi ${escapeHtml(r.rows[0].name)}, click the button below to choose a new password. This link is valid for 15 minutes.`,
+                    ctaLabel: 'Reset my password',
+                    ctaUrl: resetUrl,
+                    footerNote: 'If you did not request this, you can safely ignore this email.',
+                }),
+            });
+        }
         log('info', 'password_reset_requested', { email: value.email });
     } else {
         log('warn', 'password_reset_unknown_email', { email: value.email });
@@ -1853,6 +2233,291 @@ async function handleSmarthinkerzWebhook(rawBody, headers, ctx) {
     return { code: 200, body: 'ok' };
 }
 
+/* ───────────────────────── SMARTHINKERZ PARTNER WEBHOOK v2 ─── */
+/* Spec-conformant receiver at POST /api/webhooks/smarthinkerz
+   Header: X-SmarThinkerz-Signature: sha256=<hex HMAC-SHA256 of raw body>
+   Body  : { event, customer_email, customer_name, plan_id, plan_name,
+             amount, currency, order_id, timestamp }
+   Behavior:
+     - bad/missing signature  → 401
+     - bad JSON / missing fld → 400
+     - duplicate order_id     → 200 (idempotent ack)
+     - event=purchase.completed → upsert cc_users row, set plan, send welcome email, 200
+     - unhandled event types    → 200 ack (logged)
+     - DB / internal failure    → 500 (so SmarThinkerz can retry)
+*/
+function verifySmarthinkerzPartnerSignature(rawBody, headerVal) {
+    if (!SMARTHINKERZ_WH_SECRET || !headerVal) return false;
+    const m = String(headerVal).trim().match(/^sha256=([a-f0-9]{64})$/i);
+    if (!m) return false;
+    const provided = m[1].toLowerCase();
+    const expected = crypto.createHmac('sha256', SMARTHINKERZ_WH_SECRET).update(rawBody).digest('hex');
+    try {
+        return crypto.timingSafeEqual(Buffer.from(provided, 'hex'), Buffer.from(expected, 'hex'));
+    } catch (_) { return false; }
+}
+
+function resolveSmarthinkerzPlanId(planId) {
+    const p = String(planId || '').toLowerCase().trim();
+    if (!p) return '';
+    if (['starter', 'growth', 'pro'].includes(p)) return p;
+    if (SMARTHINKERZ_SLUG_REVERSE[p]) return SMARTHINKERZ_SLUG_REVERSE[p];
+    if (p.includes('starter'))    return 'starter';
+    if (p.includes('enterprise')) return 'pro';
+    if (p.includes('pro'))        return 'growth';
+    if (p.includes('growth'))     return 'growth';
+    return '';
+}
+
+async function handleSmarthinkerzPartnerWebhook(rawBody, headers, ctx) {
+    /* 1. signature — mismatch is 401 per spec */
+    const sigHeader = headers['x-smarthinkerz-signature'] || '';
+    if (!verifySmarthinkerzPartnerSignature(rawBody, sigHeader)) {
+        logCtx(ctx, 'warn', 'sh_partner_webhook_bad_signature');
+        await eventEmit('security.alert', { kind: 'sh_partner_bad_signature' }, ctx);
+        return { code: 401, body: { ok: false, error: 'invalid_signature' } };
+    }
+
+    /* 2. parse */
+    let event;
+    try { event = JSON.parse(rawBody.toString('utf8')); }
+    catch (e) { return { code: 400, body: { ok: false, error: 'bad_json' } }; }
+
+    const eventType = String(event.event || '').toLowerCase().trim();
+    const email     = String(event.customer_email || '').toLowerCase().trim();
+    const name      = String(event.customer_name  || '').trim() || (email ? email.split('@')[0] : '');
+    const planId    = String(event.plan_id   || '').trim();
+    const planName  = String(event.plan_name || '').trim();
+    const orderId   = String(event.order_id  || '').trim();
+    const amount    = event.amount;
+    const currency  = String(event.currency || '').trim();
+    const timestamp = String(event.timestamp || '').trim();
+
+    if (!eventType || !orderId) {
+        return { code: 400, body: { ok: false, error: 'missing_required_fields' } };
+    }
+    if (orderId.length > 128) {
+        return { code: 400, body: { ok: false, error: 'order_id_too_long' } };
+    }
+
+    /* 3. idempotency on order_id — reuse cc_stripe_events ledger with shp_ prefix */
+    const idemKey = 'shp_' + orderId;
+    try {
+        await pool.query(
+            'INSERT INTO cc_stripe_events (event_id, type) VALUES ($1, $2)',
+            [idemKey, eventType.slice(0, 64)]
+        );
+    } catch (e) {
+        if (e.code === '23505') {
+            counterInc('cc_sh_partner_webhook_duplicates_total');
+            logCtx(ctx, 'info', 'sh_partner_webhook_duplicate', { order_id: orderId });
+            return { code: 200, body: { ok: true, status: 'duplicate', order_id: orderId } };
+        }
+        logCtx(ctx, 'error', 'sh_partner_idempotency_failed', { msg: e.message });
+        return { code: 500, body: { ok: false, error: 'internal' } };
+    }
+
+    /* 4. dispatch */
+    const PARTNER_PERIOD_MS = 30 * 24 * 60 * 60 * 1000;
+    try {
+        if (eventType === 'purchase.completed') {
+            if (!email)   return rollbackAndFail(idemKey, 400, 'missing_customer_email');
+            if (!planId)  return rollbackAndFail(idemKey, 400, 'missing_plan_id');
+            const plan = resolveSmarthinkerzPlanId(planId);
+            if (!plan)    return rollbackAndFail(idemKey, 400, 'unknown_plan_id');
+
+            const planExpires = new Date(Date.now() + PARTNER_PERIOD_MS);
+            const existing = (await pool.query(
+                'SELECT id, plan FROM cc_users WHERE LOWER(email)=$1',
+                [email]
+            )).rows[0];
+
+            let userId, created = false;
+            if (existing) {
+                userId = existing.id;
+                await pool.query(
+                    `UPDATE cc_users SET plan=$1, plan_expires=$2, billing_status='active', email_verified=TRUE WHERE id=$3`,
+                    [plan, planExpires, userId]
+                );
+            } else {
+                /* Provision: random throwaway password — customer sets their own via reset link */
+                const tempPw = crypto.randomBytes(24).toString('hex') + 'Aa1!';
+                const ins = await pool.query(
+                    `INSERT INTO cc_users (name,email,password_hash,plan,role,plan_expires,email_verified)
+                     VALUES ($1,$2,$3,$4,'user',$5,TRUE) RETURNING id`,
+                    [name || email.split('@')[0], email, hashPassword(tempPw), plan, planExpires]
+                );
+                userId = ins.rows[0].id;
+                created = true;
+            }
+
+            /* Welcome / set-password email — issue a reset token so the customer can pick a password */
+            const tok = await createEmailToken(userId, 'reset', 24 * 3600 * 1000);
+            const planLabel    = planName || (PLANS[plan] && PLANS[plan].name) || plan;
+            const planFeatures = (PLANS[plan] && PLANS[plan].features) || [];
+            const setPasswordUrl = `${PUBLIC_URL}/reset-password?token=${tok}`;
+            const subject = created
+                ? `Welcome to CommentCustomer.ai — set your password`
+                : `Your CommentCustomer.ai plan is now ${planLabel}`;
+            const text = [
+                `Hi ${name || 'there'},`,
+                ``,
+                created
+                    ? `Thanks for your purchase! Your CommentCustomer.ai ${planLabel} plan is active.`
+                    : `Your CommentCustomer.ai plan has been updated to ${planLabel}.`,
+                ``,
+                created
+                    ? `To finish setting up your account, choose a password using the link below (valid for 24 hours):`
+                    : `If you ever need to reset your password, you can use the link below (valid for 24 hours):`,
+                setPasswordUrl,
+                ``,
+                `Order reference: ${orderId}`,
+                amount && currency ? `Amount: ${amount} ${currency}` : '',
+                ``,
+                `Sign in any time at ${PUBLIC_URL}/login/`,
+                ``,
+                `— The CommentCustomer.ai team`,
+            ].filter(Boolean).join('\n');
+            const html = welcomeEmailHtml({
+                name, planLabel, planFeatures, setPasswordUrl,
+                orderId, amount, currency, isNewAccount: created,
+            });
+            await sendEmail(email, subject, { text, html });
+
+            logCtx(ctx, 'info', 'sh_partner_purchase_completed', {
+                user: userId, plan, order_id: orderId, created, amount, currency, timestamp,
+            });
+            await eventEmit('payment.success', {
+                userId, plan, source: 'smarthinkerz_partner', order_id: orderId,
+            }, ctx);
+            counterInc('cc_sh_partner_webhook_total', { event: 'purchase.completed', plan });
+            return { code: 200, body: {
+                ok: true, status: created ? 'provisioned' : 'updated',
+                user_id: userId, plan, order_id: orderId,
+            }};
+        }
+
+        if (eventType === 'subscription.renewed') {
+            if (!email) return rollbackAndFail(idemKey, 400, 'missing_customer_email');
+            const userRow = (await pool.query(
+                'SELECT id, plan, plan_expires FROM cc_users WHERE LOWER(email)=$1',
+                [email]
+            )).rows[0];
+            if (!userRow) return rollbackAndFail(idemKey, 404, 'user_not_found');
+
+            /* Resolve plan: prefer payload, else keep current plan.
+               Refuse to renew into a non-paid tier (e.g. 'pending'/'trial'/'none') — that
+               almost certainly means a bad partner payload, not a real renewal. */
+            const resolvedPlan = planId ? resolveSmarthinkerzPlanId(planId) : '';
+            if (planId && !resolvedPlan) {
+                return rollbackAndFail(idemKey, 400, 'unknown_plan_id');
+            }
+            const newPlan = resolvedPlan || userRow.plan;
+            if (!['starter','growth','pro'].includes(newPlan)) {
+                logCtx(ctx, 'warn', 'sh_partner_renewal_non_paid_plan', {
+                    user: userRow.id, current_plan: userRow.plan, order_id: orderId,
+                });
+                return rollbackAndFail(idemKey, 409, 'cannot_renew_non_paid_plan');
+            }
+
+            /* Extend from existing expiry if still in the future, else from now */
+            const base = userRow.plan_expires && new Date(userRow.plan_expires).getTime() > Date.now()
+                ? new Date(userRow.plan_expires).getTime()
+                : Date.now();
+            const planExpires = new Date(base + PARTNER_PERIOD_MS);
+
+            await pool.query(
+                `UPDATE cc_users SET plan=$1, plan_expires=$2, billing_status='active' WHERE id=$3`,
+                [newPlan, planExpires, userRow.id]
+            );
+
+            logCtx(ctx, 'info', 'sh_partner_subscription_renewed', {
+                user: userRow.id, plan: newPlan, order_id: orderId, plan_expires: planExpires, amount, currency,
+            });
+            await eventEmit('payment.success', {
+                userId: userRow.id, plan: newPlan, source: 'smarthinkerz_partner',
+                order_id: orderId, kind: 'renewal',
+            }, ctx);
+            counterInc('cc_sh_partner_webhook_total', { event: 'subscription.renewed', plan: newPlan });
+            return { code: 200, body: {
+                ok: true, status: 'renewed', user_id: userRow.id,
+                plan: newPlan, plan_expires: planExpires, order_id: orderId,
+            }};
+        }
+
+        if (eventType === 'subscription.cancelled' || eventType === 'purchase.refunded') {
+            if (!email) return rollbackAndFail(idemKey, 400, 'missing_customer_email');
+            const userRow = (await pool.query(
+                'SELECT id, plan, plan_expires FROM cc_users WHERE LOWER(email)=$1',
+                [email]
+            )).rows[0];
+            if (!userRow) return rollbackAndFail(idemKey, 404, 'user_not_found');
+
+            const newStatus = eventType === 'purchase.refunded' ? 'refunded' : 'cancelled';
+            /* Keep plan_expires as the period-end so the user retains access until then.
+               runMaintenanceOnce() will downgrade plan='pending' once plan_expires lapses. */
+            await pool.query(
+                `UPDATE cc_users SET billing_status=$1 WHERE id=$2`,
+                [newStatus, userRow.id]
+            );
+
+            logCtx(ctx, 'info', 'sh_partner_subscription_terminated', {
+                user: userRow.id, status: newStatus, order_id: orderId,
+                plan_expires: userRow.plan_expires,
+            });
+            await eventEmit('payment.failed', {
+                userId: userRow.id, source: 'smarthinkerz_partner',
+                order_id: orderId, reason: newStatus,
+            }, ctx);
+            counterInc('cc_sh_partner_webhook_total', { event: eventType, plan: userRow.plan || 'na' });
+            return { code: 200, body: {
+                ok: true, status: newStatus, user_id: userRow.id,
+                plan_expires: userRow.plan_expires, order_id: orderId,
+            }};
+        }
+
+        if (eventType === 'payment.failed') {
+            if (!email) return rollbackAndFail(idemKey, 400, 'missing_customer_email');
+            const userRow = (await pool.query(
+                'SELECT id, plan FROM cc_users WHERE LOWER(email)=$1',
+                [email]
+            )).rows[0];
+            if (!userRow) return rollbackAndFail(idemKey, 404, 'user_not_found');
+
+            await pool.query(
+                `UPDATE cc_users SET billing_status='past_due' WHERE id=$1`,
+                [userRow.id]
+            );
+
+            logCtx(ctx, 'info', 'sh_partner_payment_failed', {
+                user: userRow.id, plan: userRow.plan, order_id: orderId, amount, currency,
+            });
+            await eventEmit('payment.failed', {
+                userId: userRow.id, source: 'smarthinkerz_partner',
+                order_id: orderId, reason: 'payment_failed',
+            }, ctx);
+            counterInc('cc_sh_partner_webhook_total', { event: 'payment.failed', plan: userRow.plan || 'na' });
+            return { code: 200, body: {
+                ok: true, status: 'past_due', user_id: userRow.id, order_id: orderId,
+            }};
+        }
+
+        logCtx(ctx, 'info', 'sh_partner_webhook_unhandled_event', { event: eventType, order_id: orderId });
+        counterInc('cc_sh_partner_webhook_total', { event: eventType, plan: 'na' });
+        return { code: 200, body: { ok: true, status: 'ignored', event: eventType } };
+    } catch (err) {
+        logCtx(ctx, 'error', 'sh_partner_webhook_handler_error', { msg: err.message, order_id: orderId });
+        /* Roll back idempotency so SmarThinkerz can safely retry */
+        pool.query('DELETE FROM cc_stripe_events WHERE event_id=$1', [idemKey]).catch(() => {});
+        return { code: 500, body: { ok: false, error: 'internal' } };
+    }
+
+    function rollbackAndFail(key, code, errMsg) {
+        pool.query('DELETE FROM cc_stripe_events WHERE event_id=$1', [key]).catch(() => {});
+        return { code, body: { ok: false, error: errMsg } };
+    }
+}
+
 async function handleStripeWebhook(rawBody, signature, ctx) {
     if (!STRIPE_KEY)        return { code: 503, body: 'Stripe not configured' };
     if (!STRIPE_WH_SECRET)  return { code: 503, body: 'Webhook secret not configured' };
@@ -1988,6 +2653,19 @@ const requestHandler = async (req, res) => {
         if (dur > 1000) logCtx(ctx, 'warn', 'slow_request', { method: req.method, path: urlPath, dur_ms: dur, status: res.statusCode });
     });
 
+    /* TEMP DEBUG: echo req.url so we can verify Vercel preserves it */
+    if (urlPath === '/__debug-url' || (urlPath && urlPath.indexOf('/__debug-url') !== -1)) {
+        return send(res, 200, 'application/json', JSON.stringify({
+            method: req.method,
+            req_url: req.url,
+            urlPath: urlPath,
+            host: req.headers['host'] || null,
+            xVercelOriginalPath: req.headers['x-vercel-original-path'] || null,
+            xMatchedPath: req.headers['x-matched-path'] || null,
+            xForwardedUri: req.headers['x-forwarded-uri'] || null,
+        }));
+    }
+
     /* PROMETHEUS METRICS — gauge live numbers, then render */
     if (req.method === 'GET' && urlPath === '/metrics') {
         try {
@@ -2114,7 +2792,22 @@ ${urls.map(u => `  <url>
         }
     }
 
-    /* Smarthinkerz partner webhook (Tap payment events) */
+    /* SmarThinkerz partner webhook (spec-conformant: purchase.completed → provision) */
+    if (req.method === 'POST' && urlPath === '/api/webhooks/smarthinkerz') {
+        const raw = await parseBody(req, true);
+        try {
+            const r = await handleSmarthinkerzPartnerWebhook(raw, req.headers, ctx);
+            counterInc('cc_sh_partner_webhook_responses_total', { code: r.code });
+            const payload = typeof r.body === 'string' ? r.body : JSON.stringify(r.body);
+            const ctype   = typeof r.body === 'string' ? 'text/plain' : 'application/json';
+            return send(res, r.code, ctype, payload);
+        } catch (err) {
+            logCtx(ctx, 'error', 'sh_partner_webhook_failed', { msg: err.message });
+            return send(res, 500, 'application/json', JSON.stringify({ ok: false, error: 'internal' }));
+        }
+    }
+
+    /* Smarthinkerz partner webhook (Tap payment events — legacy spec) */
     if (req.method === 'POST' && (urlPath === '/api/smarthinkerz-webhook' || urlPath === '/api/sh-webhook')) {
         const raw = await parseBody(req, true);
         try {
@@ -2219,6 +2912,7 @@ ${urls.map(u => `  <url>
             totp_enabled:   session.totp_enabled,
             trial_ends:     session.trial_ends,
             plan_expires:   session.plan_expires,
+            billing_status: session.billing_status || 'active',
             csrf:           session.csrf_token,
         }});
     }
