@@ -2306,13 +2306,14 @@ body.menu-open {
 
 .demo-box {
     background: var(--bg-card);
-    border: 1px solid var(--border-color);
+    border: 1px solid #ffffff;
     border-radius: var(--radius-lg);
     overflow: hidden;
     position: relative;
     opacity: 1;
     transform: none;
     transition: opacity 0.5s ease, transform 0.5s ease;
+    box-shadow: 0 0 0 1px rgba(255,255,255,0.15);
 }
 
 .demo-box.pre-animate {
