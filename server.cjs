@@ -2653,19 +2653,6 @@ const requestHandler = async (req, res) => {
         if (dur > 1000) logCtx(ctx, 'warn', 'slow_request', { method: req.method, path: urlPath, dur_ms: dur, status: res.statusCode });
     });
 
-    /* TEMP DEBUG: echo req.url so we can verify Vercel preserves it */
-    if (urlPath === '/__debug-url' || (urlPath && urlPath.indexOf('/__debug-url') !== -1)) {
-        return send(res, 200, 'application/json', JSON.stringify({
-            method: req.method,
-            req_url: req.url,
-            urlPath: urlPath,
-            host: req.headers['host'] || null,
-            xVercelOriginalPath: req.headers['x-vercel-original-path'] || null,
-            xMatchedPath: req.headers['x-matched-path'] || null,
-            xForwardedUri: req.headers['x-forwarded-uri'] || null,
-        }));
-    }
-
     /* PROMETHEUS METRICS — gauge live numbers, then render */
     if (req.method === 'GET' && urlPath === '/metrics') {
         try {
