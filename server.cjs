@@ -2042,8 +2042,6 @@ function smarthinkerzCreateCheckout(formObj) {
 }
 
 async function handleCheckout(session, body, ip) {
-    if (!session) return { code: 401, body: { success: false, data: { message: 'Please log in to complete payment.' } } };
-
     const { errors, value } = validate({
         email: { email: true, maxLength: 200, lower: true },
         plan:  { enum: ['starter','growth','pro'] },
@@ -2051,14 +2049,19 @@ async function handleCheckout(session, body, ip) {
         phone: { maxLength: 32,  optional: true },
     }, body);
     if (errors.length) return { code: 400, body: { success: false, data: { message: 'Invalid payment details.' } } };
-    if (value.email !== session.email) {
+    /* If logged in, enforce email match. Anonymous visitors from /pricing use whatever email they type. */
+    if (session && value.email !== session.email) {
         log('warn', 'payment_email_mismatch', { ip, sessionEmail: session.email, attempted: value.email });
         return { code: 403, body: { success: false, data: { message: 'Email mismatch.' } } };
     }
 
-    /* Resolve customer name + phone (form > session row) */
-    const userRow = (await pool.query('SELECT name FROM cc_users WHERE id=$1', [session.user_id])).rows[0] || {};
-    const fullName = String(value.name || userRow.name || '').trim();
+    /* Resolve customer name + phone (form > existing row by email if any) */
+    let existingName = '';
+    try {
+        const r = await pool.query('SELECT name FROM cc_users WHERE LOWER(email)=$1', [value.email]);
+        if (r.rows[0]) existingName = r.rows[0].name || '';
+    } catch (_) {}
+    const fullName = String(value.name || existingName || '').trim();
     const phone    = String(value.phone || '').trim();
 
     if (!fullName)        return { code: 400, body: { success: false, data: { message: 'Full name is required.' } } };
@@ -2081,14 +2084,14 @@ async function handleCheckout(session, body, ip) {
         /* Validation error from Smarthinkerz */
         if (r.status === 400) {
             const m = (r.body && r.body.error) ? r.body.error : 'Payment provider rejected the request.';
-            log('warn', 'smarthinkerz_checkout_rejected', { user: session.user_id, plan: value.plan, msg: m });
+            log('warn', 'smarthinkerz_checkout_rejected', { user: session ? session.user_id : null, email: value.email, plan: value.plan, msg: m });
             return { code: 400, body: { success: false, data: { message: m } } };
         }
 
         /* Expected: 303 See Other with Location header to Tap hosted page */
         if (r.status >= 300 && r.status < 400 && r.location) {
-            log('info', 'smarthinkerz_checkout_created', { user: session.user_id, plan: value.plan, slug });
-            await eventEmit('payment.checkout_started', { userId: session.user_id, plan: value.plan, source: 'smarthinkerz' });
+            log('info', 'smarthinkerz_checkout_created', { user: session ? session.user_id : null, email: value.email, plan: value.plan, slug });
+            await eventEmit('payment.checkout_started', { userId: session ? session.user_id : null, email: value.email, plan: value.plan, source: 'smarthinkerz' });
             return { code: 200, body: { success: true, data: { checkout_url: r.location, provider: 'tap' } } };
         }
 
@@ -3000,12 +3003,26 @@ ${urls.map(u => `  <url>
             log('warn', 'rate_limited', { ip, action, layer: rl });
             return sendErr(res, 429, 'Too many requests. Please slow down and try again.');
         }
-        const NEEDS_CSRF = ['cc_checkout','cc_admin_setup_2fa','cc_admin_enable_2fa','cc_admin_disable_2fa','cc_change_password'];
+        const NEEDS_CSRF = ['cc_admin_setup_2fa','cc_admin_enable_2fa','cc_admin_disable_2fa','cc_change_password'];
         if (NEEDS_CSRF.includes(action)) {
             const headerToken = req.headers['x-csrf-token'] || body.csrf || '';
             if (!session || !headerToken || headerToken !== session.csrf_token) {
                 log('warn', 'csrf_failed', { ip, action });
                 return sendErr(res, 403, 'Security token mismatch. Please refresh and try again.');
+            }
+        }
+        /* Checkout is anonymous-friendly (visitors from /pricing aren't logged in) — enforce same-origin instead of CSRF */
+        if (action === 'cc_checkout' || action === 'cc_simulate_payment') {
+            const origin  = String(req.headers['origin']  || '');
+            const referer = String(req.headers['referer'] || '');
+            const host    = String(req.headers['host']    || '').toLowerCase();
+            const allowed = host && (
+                (origin  && origin.toLowerCase().endsWith('//' + host)) ||
+                (referer && referer.toLowerCase().includes('//' + host + '/'))
+            );
+            if (!allowed) {
+                log('warn', 'checkout_bad_origin', { ip, origin, referer, host });
+                return sendErr(res, 403, 'Invalid request origin.');
             }
         }
 
